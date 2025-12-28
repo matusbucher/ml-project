@@ -1,0 +1,93 @@
+\documentclass[runningheads]{llncs}
+
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{microtype}
+\usepackage{graphicx}
+\usepackage{amsmath,amssymb}
+\usepackage{hyperref}
+\usepackage{booktabs}
+\usepackage{caption}
+\usepackage{siunitx}
+\usepackage{enumitem}
+
+\setlength{\parskip}{5pt}
+\setlength{\parindent}{0pt}
+
+\usepackage[style=numeric]{biblatex}
+\addbibresource{references.bib}
+
+\begin{document}
+
+\title{Project Proposal: Model for Math Problems Difficulty Prediction}
+\author{Matus Bucher \\ \email{bucher5@uniba.sk}}
+\institute{Comenius University in Bratislava, \\ Faculty of Mathematics, Physics and Informatics}
+
+\maketitle
+
+
+\section{Problem Statement}
+
+\subsection{Goal}
+
+Given a math problem formulation (e.g.\ from calculus, algebra, etc.), predict its difficulty.
+
+Such a model could have several practical applications, including automated exam construction and assessment, analytics for instructors and curriculum designers, adaptive learning platforms, student study planning through time-on-task estimation, and benchmarking models that solve mathematical problems.
+
+\subsection{Input}
+
+In the general case, a problem can be represented as raw text describing the task in natural language. Many existing datasets provide problems in this format, as discussed in the next section.
+
+However, when focusing on a specific class of problems -- for example, indefinite integral exercises -- problems can be represented using more structured features. Potential representations include:
+
+\begin{itemize}
+\item extracted features from the mathematical expression (e.g., operators and elementary functions used, function composition depth, or the number and location of occurrences of the integration variable);
+\item expression-tree (syntax-tree) representations, which require models capable of processing structured data (Tree-LSTMs or GNN).
+\end{itemize}
+
+Since I haven't found any datasets with such specialized problem representations, this approach would require filtering and additional preprocessing of the available datasets. It would certainly reduce the resulting dataset size, but we will still consider to experiment with this option.
+
+
+\subsection{Output}
+
+The output is a difficulty score represented as a real number within a specified range. A categorical formulation (e.g., easy/medium/hard) is also possible, although this introduces challenges in modeling the relationships between classes (e.g., ``medium'' should be harder than ``easy'' but easier than ``hard'').
+
+
+\section{Dataset Candidates}
+
+There are many publicly available datasets of mathematical problems together with their final answers and also solution explanations. These datasets are commonly used for training and evaluating models for mathematical reasoning. Importantly for this project, some of them also provide a measure of problem difficulty, which can be directly used as a supervision signal for our model.
+
+Below, we list found datasets considered as suitable candidates:
+
+\begin{itemize}
+
+\item \textbf{MATH-lighteval} \cite{math} (\href{https://huggingface.co/datasets/DigitalLearningGmbH/MATH-lighteval}{\textcolor{blue}{link}})
+\begin{itemize}
+\item \textbf{samples:} 25{,}000
+\item \textbf{difficulty label:} discrete levels from 1 to 5
+\end{itemize}
+
+\vspace{10pt}
+
+\item \textbf{Easy2Hard-Bench} \cite{easy2hard} (\href{https://huggingface.co/datasets/furonghuang-lab/Easy2Hard-Bench}{\textcolor{blue}{link}})
+\begin{itemize}
+\item \textbf{samples:} 92{,}159
+\item \textbf{difficulty label:} float number in the range $(0,1)$
+\end{itemize}
+
+\vspace{10pt}
+
+\item \textbf{DeepMath-103K} \cite{deepmath} (\href{https://huggingface.co/datasets/zwhe99/DeepMath-103K}{\textcolor{blue}{link}})
+\begin{itemize}
+\item \textbf{samples:} 103{,}022
+\item \textbf{difficulty label:} float number in the range $(0,10)$ (but with actual values in $\{1, 1.5, ..., 9.5, 10\}$)
+\end{itemize}
+
+\end{itemize}
+
+Since these datasets use different domains for difficulty measure, combining multiple datasets would require an appropriate normalization of labels.
+
+
+\printbibliography
+
+\end{document}
