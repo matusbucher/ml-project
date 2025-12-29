@@ -1,8 +1,10 @@
 import math_lighteval
+import easy2hard_bench
 import baseline_models
 
 if __name__ == "__main__":
-    data = math_lighteval.data_load(normalize_labels=True)
+    # data = math_lighteval.data_load()
+    data = easy2hard_bench.data_load()
 
     model1 = baseline_models.BaselineRandomModel(data)
     model2 = baseline_models.BaselineAverageModel(data)

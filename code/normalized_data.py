@@ -21,17 +21,15 @@ class Features():
 
 
 class NormalizedData:
-    def __init__(self, train_data: List[Features], train_labels: List[float], test_data: List[Features], test_labels: List[float]):
-        if len(train_data) != len(train_labels):
-            raise ValueError("Number of training samples and training labels must be the same.")
+    def __init__(self, data: List[Features], labels: List[float], split_ratio: float):
+        if not (0.0 < split_ratio < 1.0):
+            raise ValueError("split_ratio must be between 0 and 1")
         
-        if len(test_data) != len(test_labels):
-            raise ValueError("Number of test samples and test labels must be the same.")
-
-        self.train_data = train_data
-        self.train_labels = train_labels
-        self.test_data = test_data
-        self.test_labels = test_labels
+        split_index = int(len(data) * split_ratio)
+        self.train_data = data[:split_index]
+        self.train_labels = labels[:split_index]
+        self.test_data = data[split_index:]
+        self.test_labels = labels[split_index:]
 
     def train_size(self) -> int:
         return len(self.train_data)
