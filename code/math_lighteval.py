@@ -48,7 +48,7 @@ def data_load(normalize_labels: bool = False, filter: List[ProblemType] = None) 
     test_labels = [float(sample["level"].split()[1]) for sample in ds["test"]]
 
     if normalize_labels:
-        train_labels = [x / 5.0 for x in train_labels]
-        test_labels = [x / 5.0 for x in test_labels]
+        train_labels = [(x - 1) / 4 for x in train_labels]
+        test_labels = [(x - 1) / 4 for x in test_labels]
 
     return NormalizedData(train_data=train_data, train_labels=train_labels, test_data=test_data, test_labels=test_labels)
