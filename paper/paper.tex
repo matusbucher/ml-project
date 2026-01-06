@@ -1,0 +1,197 @@
+\documentclass[runningheads]{llncs}
+
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{microtype}
+\usepackage{graphicx}
+\usepackage{amsmath,amssymb}
+\usepackage{hyperref}
+\usepackage{booktabs}
+\usepackage{caption}
+\usepackage{siunitx}
+\usepackage{enumitem}
+
+\usepackage{tabularx}
+\usepackage{cellspace} 
+\setlength{\cellspacetoplimit}{5pt}
+\setlength{\cellspacebottomlimit}{5pt}
+
+\setlength{\parskip}{5pt}
+\setlength{\parindent}{0pt}
+
+\usepackage[style=numeric]{biblatex}
+\addbibresource{references.bib}
+
+\begin{document}
+
+\title{Model for Math Problems Difficulty Prediction}
+\subtitle{Machine Learning Project Paper}
+\author{Matus Bucher \\ \email{bucher5@uniba.sk}}
+\institute{Comenius University in Bratislava, \\ Faculty of Mathematics, Physics and Informatics}
+
+\maketitle
+
+
+\textbf{GitHub repository:} \href{https://github.com/matusbucher/ml-project}{\textcolor{blue}{github.com/matusbucher/ml-project}}
+
+
+\section{Introduction}
+
+In this project, we implement and evaluate a model for predicting the difficulty of mathematical problems using a range of preprocessing techniques and machine learning methods. Then we compare the performance of these modeling approaches. Everything was implemented in Python using libraries Scikit-learn, Numpy, TensorFlow (Keras).
+
+We used publicly available datasets of mathematical problems (spanning areas such as algebra, calculus, geometry, combinatorics, etc.), which are usually meant for reasoning language models. These datasets, originally designed for evaluating mathematical reasoning in language models, often include estimated difficulty annotations, which we use as supervision for model training.
+
+Accurate difficulty prediction (not only for mathematical problems, but generally for any task) has several practical applications, including exam difficulty assessment, analytics for instructors and curriculum designers, adaptive learning platforms, student study planning through time-on-task estimation, and benchmarking models that solve mathematical problems.
+
+
+\section{Datasets}
+
+We selected two datasets that include explicit difficulty annotations, but in different formats.
+
+\begin{itemize}
+
+\item \textbf{MATH-lighteval} \cite{math} (\href{https://huggingface.co/datasets/DigitalLearningGmbH/MATH-lighteval}{\textcolor{blue}{huggingface.co/datasets/DigitalLearningGmbH/MATH-lighteval}})
+\begin{itemize}
+\item \textbf{rows:} 12{,}500
+\item \textbf{difficulty label:} \textit{level} -- integer number from 1 to 5 (level 1 means the lowest difficulty)
+\item \textbf{other features:} solution description; problem type (algebra, counting \& probability, geometry, intermediate algebra, number Theory, prealgebra, precalculus)
+\end{itemize}
+
+\vspace{10pt}
+
+\item \textbf{Easy2Hard-Bench} (E2H-AMC subset) \cite{easy2hard} (\href{https://huggingface.co/datasets/furonghuang-lab/Easy2Hard-Bench}{\textcolor{blue}{huggingface.co/datasets/furonghuang-lab/Easy2Hard-Bench}})
+\begin{itemize}
+\item \textbf{rows:} 3{,}980
+\item \textbf{difficulty label:} \textit{rating} -- float number in the range $(0,1)$ (the smaller number the lower difficulty)
+\item \textbf{other features:} numerical answer; solution description; contest metadata (name, year, contest type); auxiliary difficulty estimates (e.g., standard deviation, unnormalized rating, lower/upper bounds suggested by AoPS)
+\end{itemize}
+
+\end{itemize}
+
+In both datasets, problem statements are provided as text in \TeX{} format, describing the problem in natural language (English) and mathematical formulas.
+
+Each dataset also includes solution descriptions (also in text representation), which can optionally be used as model inputs. We experimented with this option in our project. However, in practical scenario, difficulty estimation should ideally rely solely on the problem statement, without requiring access to a solution. Moreover, problem may have multiple valid solutions -- choosing one solution over other should not change the problem difficulty (or at least not that much). On the other hand, it can serve as a measure of how much difficulty information is not visible in the statement alone.
+
+For all model training, we used an $80:20$ train-test split. Together with filtering out invalid samples (e.g., missing difficulty labels), the resulting dataset sizes were as follows:
+
+\begin{itemize}
+
+\item \textbf{MATH-lighteval}
+\begin{itemize}
+\item \textbf{train:} 9{,}998
+\item \textbf{test:} 2{,}500
+\end{itemize}
+
+\vspace{10pt}
+
+\item \textbf{Easy2Hard-Bench}
+\begin{itemize}
+\item \textbf{train:} 3{,}180
+\item \textbf{test:} 795
+\end{itemize}
+
+\end{itemize}
+
+
+\section{Model Description}
+
+Based on the selected datasets, the primary input to our model is the problem statement provided as raw text, including \TeX{} notation. An optional inputs is the solution description.
+
+The model outputs a single continuous value in the range $[0,1]$, representing the estimated difficulty of a problem, where 0 corresponds to the lowest difficulty. This unified representation enables combining the two datasets.
+
+Accordingly, the discrete \textit{level} label in the MATH-lighteval dataset needs to be mapped to $[0,1]$. In order to avoid having large number of marginal labels in training data, we use linear normalization from $[1,5]$ to $[0.1,0.9]$ (level 1 maps to $0.1$, level 5 maps to $0.9$) as follows:
+
+$$ \text{normalize}(l) = 0.1 + 0.2(l - 1) $$
+
+The \textit{rating} label in the Easy2Hard-Bench dataset is already in normalized format and does not require additional transformation.
+
+
+\section{Baseline Models}
+
+We considered four simple baseline models to establish reference performance levels:
+
+\begin{itemize}
+
+\item \textbf{Random Model} -- Predicts a difficulty value sampled uniformly at random from the interval $(0,1)$.
+
+\item \textbf{Average Model} -- Predicts the mean difficulty value computed from the training data.
+
+\item \textbf{Description Length Model} -- A linear regression model using the length of the problem description as the sole feature, with predictions bounded to $[0,1]$\footnote{Bounding is applied only at evaluation time, not during training.}.
+
+\item \textbf{Solution Length Model} -- A linear regression model using the length of the solution description as the sole feature, with predictions bounded to $[0,1]$.
+
+\end{itemize}
+
+In the following tables, we can see measured scored of each model on the two datasets. We chose three metrics -- R-squared ($R^2$) and root mean squared error (RMSE).
+
+\vspace{6pt}
+
+\begin{minipage}{\linewidth}
+\centering
+\captionof{table}{Baseline model performance on MATH-lighteval}
+\label{tab:baseline-math}
+\begin{tabular}{@{}lcccc@{}}
+\hline
+\textbf{Model}
+& \multicolumn{2}{c}{\textbf{Train}}
+& \multicolumn{2}{c}{\textbf{Test}} \\
+\cline{2-5}
+ & $R^2$ & RMSE & $R^2$ & RMSE \\
+\hline
+Random
+ & -0.955 & 0.452
+ & -0.981 & 0.454 \\
+Average
+ & 0.000 & 0.323
+ & 0.000 & 0.323 \\
+Description Length
+ & 0.059 & 0.313
+ & 0.061 & 0.313 \\
+Solution Length
+ & 0.210 & 0.287
+ & 0.210 & 0.287 \\
+\hline
+\end{tabular}
+\end{minipage}
+
+\vspace{12pt}
+
+\begin{minipage}{\linewidth}
+\centering
+\captionof{table}{Baseline model performance on Easy2Hard-Bench}
+\label{tab:baseline-e2h}
+\begin{tabular}{@{}lcccc@{}}
+\hline
+\textbf{Model}
+& \multicolumn{2}{c}{\textbf{Train}}
+& \multicolumn{2}{c}{\textbf{Test}} \\
+\cline{2-5}
+ & $R^2$ & RMSE & $R^2$ & RMSE \\
+\hline
+Random
+ & -1.485 & 0.385
+ & -1.430 & 0.382 \\
+Average
+ & 0.000 & 0.244
+ & -0.002 & 0.245 \\
+Description Length
+ & 0.001 & 0.244
+ & -0.005 & 0.246 \\
+Solution Length
+ & 0.161 & 0.224
+ & 0.124 & 0.229 \\
+\hline
+\end{tabular}
+\end{minipage}
+
+\vspace{6pt}
+
+Among the baseline models, the solution length model achieves the highest accuracy. However, it relies on an optional feature; therefore, the description length model is still relevant for later comparisons.
+
+
+\section{Linear Models}
+
+
+\printbibliography
+
+\end{document}
