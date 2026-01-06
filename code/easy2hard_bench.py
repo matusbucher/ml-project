@@ -1,5 +1,6 @@
 from datasets import load_dataset
 from itertools import chain
+
 from normalized_data import *
 
 DATASET_NAME = "furonghuang-lab/Easy2Hard-Bench"

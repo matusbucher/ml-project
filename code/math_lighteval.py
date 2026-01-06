@@ -1,5 +1,7 @@
+from typing import List
 from datasets import load_dataset
 from itertools import chain
+
 from normalized_data import *
 
 DATASET_NAME = "DigitalLearningGmbH/MATH-lighteval"
@@ -16,7 +18,7 @@ TYPE_MAPPING = {
 }
 
 
-def __is_valid(sample) -> bool:
+async def __is_valid(sample) -> bool:
     try:
         float(sample["level"].split()[1])
         return True
@@ -24,18 +26,17 @@ def __is_valid(sample) -> bool:
         return False
 
 
-def data_load(split_ratio: float = 0.8, normalize_labels: bool = True, filter: List[ProblemType] = None) -> NormalizedData:
+def data_load(split_ratio: float = 0.8, normalize_labels: bool = True, filter_type: List[ProblemType] = None) -> NormalizedData:
     ds = load_dataset(DATASET_NAME, SUBSET_NAME)
 
-    ds["train"].filter(__is_valid)
-    ds["test"].filter(__is_valid)
+    ds["train"] = ds["train"].filter(__is_valid)
+    ds["test"] = ds["test"].filter(__is_valid)
 
-    if filter is not None:
-        def filter_fn(example):
-            return TYPE_MAPPING.get(example["type"], None) in filter
-        
-        ds["train"].filter(filter_fn)
-        ds["test"].filter(filter_fn)
+    if filter_type is not None:
+        async def filter_fn(sample):
+            return TYPE_MAPPING.get(sample["type"], None) in filter_type
+        ds["train"] = ds["train"].filter(filter_fn)
+        ds["test"] = ds["test"].filter(filter_fn)
 
     data  = [
         Features(description=sample["problem"], solution=sample["solution"], problem_type=TYPE_MAPPING.get(sample["type"], None))
