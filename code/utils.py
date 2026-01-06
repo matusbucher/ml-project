@@ -4,7 +4,7 @@ import re
 import json
 
 
-STOPWORDS_FILE = "data/stopwords.json"
+STOPWORDS_FILE = "data/stopwords_english.json"
 
 
 def bound_target(value: float) -> float:
@@ -12,16 +12,13 @@ def bound_target(value: float) -> float:
 
 def remove_latex(text: str) -> str:
     # Inline math expressions $...$
-    result = re.sub(r'\$.*?\$', ' ', text)
+    result = re.sub(r"\$.*?\$", " ", text)
     # Display math expressions \[...\] or $$...$$
-    result = re.sub(r'\\\[.*?\\\]', ' ', result, flags=re.DOTALL)
+    result = re.sub(r"\\\[.*?\\\]", " ", result, flags=re.DOTALL)
     # \begin{...} and \end{...} and everything between them
-    result = re.sub(r'\\begin\{.*?\}.*?\\end\{.*?\}', ' ', result, flags=re.DOTALL)
+    result = re.sub(r"\\begin\{.*?\}.*?\\end\{.*?\}", " ", result, flags=re.DOTALL)
 
     return result
-
-def lowercase_words(words: List[str]) -> None:
-    words[:] = [word.lower() for word in words]
 
 def stem_words(words: List[str], stem: Callable[[str], str]) -> None:
     words[:] = [stem(word) for word in words]
@@ -33,6 +30,6 @@ def filter_words(words: List[str], filter: Set[str], contains: bool) -> None:
         words[:] = [word for word in words if word not in filter]
 
 def load_stopwords() -> Set[str]:
-    with open(STOPWORDS_FILE, 'r', encoding='utf-8') as f:
+    with open(STOPWORDS_FILE, "r", encoding="utf-8") as f:
         stopwords = json.load(f)
     return set(stopwords)

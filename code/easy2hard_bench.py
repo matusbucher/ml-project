@@ -7,7 +7,7 @@ DATASET_NAME = "furonghuang-lab/Easy2Hard-Bench"
 SUBSET_NAME = "E2H-AMC"
 
 
-def data_load(split_ratio: float = 0.8) -> NormalizedData:
+def data_load(test_ratio: float = 0.2) -> NormalizedData:
     ds = load_dataset(DATASET_NAME, SUBSET_NAME)
 
     data = [
@@ -17,4 +17,4 @@ def data_load(split_ratio: float = 0.8) -> NormalizedData:
 
     labels = [float(sample["rating"]) for sample in chain(ds["train"], ds["eval"])]
 
-    return NormalizedData(data=data, labels=labels, split_ratio=split_ratio)
+    return NormalizedData(data=data, labels=labels, test_ratio=test_ratio)

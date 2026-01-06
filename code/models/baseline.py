@@ -21,12 +21,12 @@ class BaselineAverageModel(ModelInterface):
 
         if normalized_data is not None:
             self.fit(normalized_data.train_data, normalized_data.train_labels)
+
+    def fit(self, data: List[Features], labels: List[float]) -> None:
+        self._average_label = sum(labels) / len(labels)
         
     def predict(self, features: Features) -> float:
         return self._average_label
-    
-    def fit(self, data: List[Features], labels: List[float]) -> None:
-        self._average_label = sum(labels) / len(labels)
 
 
 class BaselineDescriptionLengthModel(ModelInterface):
@@ -41,7 +41,7 @@ class BaselineDescriptionLengthModel(ModelInterface):
         X = np.array([[len(f.description)] for f in data])
         y = np.array(labels)
         self._reg.fit(X, y)
-
+    
     def predict(self, features: Features) -> float:
         X = np.array([[len(features.description)]])
         return bound_target(self._reg.predict(X)[0])

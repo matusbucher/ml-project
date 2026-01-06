@@ -1,6 +1,7 @@
 from typing import List
 from enum import Enum
 from dataclasses import dataclass
+from sklearn.model_selection import train_test_split
 
 
 class ProblemType(Enum):
@@ -21,15 +22,13 @@ class Features():
 
 
 class NormalizedData:
-    def __init__(self, data: List[Features], labels: List[float], split_ratio: float):
-        if not (0.0 < split_ratio < 1.0):
-            raise ValueError("split_ratio must be between 0 and 1")
+    def __init__(self, data: List[Features], labels: List[float], test_ratio: float):
+        if not (0.0 < test_ratio < 1.0):
+            raise ValueError("test_ratio must be between 0 and 1")
         
-        split_index = int(len(data) * split_ratio)
-        self.train_data = data[:split_index]
-        self.train_labels = labels[:split_index]
-        self.test_data = data[split_index:]
-        self.test_labels = labels[split_index:]
+        self.train_data, self.test_data, self.train_labels, self.test_labels = train_test_split(
+            data, labels, test_size=test_ratio, random_state=67
+        )
 
     def train_size(self) -> int:
         return len(self.train_data)

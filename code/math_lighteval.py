@@ -26,7 +26,7 @@ async def __is_valid(sample) -> bool:
         return False
 
 
-def data_load(split_ratio: float = 0.8, normalize_labels: bool = True, filter_type: List[ProblemType] = None) -> NormalizedData:
+def data_load(test_ratio: float = 0.2, normalize_labels: bool = True, filter_type: List[ProblemType] = None) -> NormalizedData:
     ds = load_dataset(DATASET_NAME, SUBSET_NAME)
 
     ds["train"] = ds["train"].filter(__is_valid)
@@ -48,4 +48,4 @@ def data_load(split_ratio: float = 0.8, normalize_labels: bool = True, filter_ty
     if normalize_labels:
         labels = [(x - 1) / 4 for x in labels]
 
-    return NormalizedData(data=data, labels=labels, split_ratio=split_ratio)
+    return NormalizedData(data=data, labels=labels, test_ratio=test_ratio)
