@@ -1,22 +1,36 @@
-from typing import List, Set
 from collections.abc import Callable
 import re
 import json
+import math
+from typing import List, Set
 
 
 STOPWORDS_FILE = "data/stopwords_english.json"
 
 
-def bound_target(value: float) -> float:
-    return min(max(value, 0.0), 1.0)
+def identity(x: float) -> float:
+    return x
 
-def remove_latex(text: str) -> str:
-    # Inline math expressions $...$
-    result = re.sub(r"\$.*?\$", " ", text)
-    # Display math expressions \[...\] or $$...$$
-    result = re.sub(r"\\\[.*?\\\]", " ", result, flags=re.DOTALL)
+def sigmoid(x: float) -> float:
+    return 1 / (1 + pow(math.e, -x))
+
+def clip(x: float) -> float:
+    return min(max(x, 0.0), 1.0)
+
+def remove_tex_symbols(text: str) -> str:
+    # Remove common TeX symbols
+    symbols = ["\\", "{", "}", "^", "_", "~", "%", "&", "#", "$"]
+    for sym in symbols:
+        text = text.replace(sym, " ")
+    return text
+
+def remove_tex(text: str) -> str:
     # \begin{...} and \end{...} and everything between them
-    result = re.sub(r"\\begin\{.*?\}.*?\\end\{.*?\}", " ", result, flags=re.DOTALL)
+    result = re.sub(r"\\begin\{.*?\}.*?\\end\{.*?\}", " ", text, flags=re.DOTALL)
+    # Display math expressions \[...\] or $$...$$
+    result = re.sub(r"\\\[.*?\\\]|\$\$.*?\$\$", " ", result, flags=re.DOTALL)
+    # Inline math expressions $...$
+    result = re.sub(r"\$.*?\$", " ", result, flags=re.DOTALL)
 
     return result
 

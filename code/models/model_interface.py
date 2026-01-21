@@ -1,8 +1,15 @@
 from abc import ABC, abstractmethod
-from typing import List
+from typing import List, Dict
 from sklearn.metrics import r2_score, root_mean_squared_error, mean_absolute_error
+from sqlalchemy import Enum
 
 from normalized_data import Features
+
+
+class MetricType(Enum):
+    R2 = "r2"
+    RMSE = "rmse"
+    
 
 class ModelInterface(ABC):
     @abstractmethod
@@ -13,7 +20,7 @@ class ModelInterface(ABC):
     def predict(self, features: Features) -> float:
         raise NotImplementedError
 
-    def r2_score(self, data: List[Features], labels: List[float]) -> float:
+    def r2(self, data: List[Features], labels: List[float]) -> float:
         predictions = [self.predict(f) for f in data]
         return r2_score(labels, predictions)
     
@@ -25,10 +32,9 @@ class ModelInterface(ABC):
         predictions = [self.predict(f) for f in data]
         return mean_absolute_error(labels, predictions)
     
-    def get_metrics(self, data: List[Features], labels: List[float]) -> dict:
+    def get_metrics(self, data: List[Features], labels: List[float]) -> Dict[MetricType, float]:
         predictions = [self.predict(f) for f in data]
         return {
-            "r2": r2_score(labels, predictions),
-            "rmse": root_mean_squared_error(labels, predictions),
-            "mae": mean_absolute_error(labels, predictions)
+            MetricType.R2: r2_score(labels, predictions),
+            MetricType.RMSE: root_mean_squared_error(labels, predictions),
         }

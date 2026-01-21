@@ -7,7 +7,7 @@ from normalized_data import *
 from utils import *
 
 
-class BaselineRandomModel(ModelInterface):
+class RandomModel(ModelInterface):
     def fit(self, data: List[Features], labels: List[float]) -> None:
         pass
 
@@ -15,7 +15,7 @@ class BaselineRandomModel(ModelInterface):
         return np.random.uniform(0, 1)
 
 
-class BaselineAverageModel(ModelInterface):
+class AverageModel(ModelInterface):
     def __init__(self, normalized_data: NormalizedData = None):
         self._average_label : float = 0.0
 
@@ -29,7 +29,7 @@ class BaselineAverageModel(ModelInterface):
         return self._average_label
 
 
-class BaselineDescriptionLengthModel(ModelInterface):
+class DescriptionLengthModel(ModelInterface):
     def __init__(self, normalized_data: NormalizedData = None):
         self._reg = LinearRegression()
 
@@ -38,16 +38,15 @@ class BaselineDescriptionLengthModel(ModelInterface):
             return
     
     def fit(self, data: List[Features], labels: List[float]) -> None:
-        X = np.array([[len(f.description)] for f in data])
-        y = np.array(labels)
-        self._reg.fit(X, y)
+        X = [[len(f.description)] for f in data]
+        self._reg.fit(X, labels)
     
     def predict(self, features: Features) -> float:
-        X = np.array([[len(features.description)]])
-        return bound_target(self._reg.predict(X)[0])
+        X = [[len(features.description)]]
+        return clip(self._reg.predict(X)[0])
 
 
-class BaselineSolutionLengthModel(ModelInterface):
+class SolutionLengthModel(ModelInterface):
     def __init__(self, normalized_data: NormalizedData = None):
         self._reg = LinearRegression()
 
@@ -56,10 +55,9 @@ class BaselineSolutionLengthModel(ModelInterface):
             return
     
     def fit(self, data: List[Features], labels: List[float]) -> None:
-        X = np.array([[len(f.solution)] for f in data])
-        y = np.array(labels)
-        self._reg.fit(X, y)
+        X = [[len(f.solution)] for f in data]
+        self._reg.fit(X, labels)
 
     def predict(self, features: Features) -> float:
-        X = np.array([[len(features.solution)]])
-        return bound_target(self._reg.predict(X)[0])
+        X = [[len(features.solution)]]
+        return clip(self._reg.predict(X)[0])

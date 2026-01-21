@@ -24,7 +24,9 @@ async def __is_valid(sample) -> bool:
         return True
     except (IndexError, ValueError):
         return False
-
+    
+def __normalize(label: int) -> float:
+    return 0.1 + 0.2 * (label - 1)
 
 def data_load(test_ratio: float = 0.2, normalize_labels: bool = True, filter_type: List[ProblemType] = None) -> NormalizedData:
     ds = load_dataset(DATASET_NAME, SUBSET_NAME)
@@ -46,6 +48,6 @@ def data_load(test_ratio: float = 0.2, normalize_labels: bool = True, filter_typ
     labels = [float(sample["level"].split()[1]) for sample in chain(ds["train"], ds["test"])]
 
     if normalize_labels:
-        labels = [(x - 1) / 4 for x in labels]
+        labels = [__normalize(x) for x in labels]
 
     return NormalizedData(data=data, labels=labels, test_ratio=test_ratio)
