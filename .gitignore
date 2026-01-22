@@ -2,4 +2,6 @@ build/
 __pycache__/
 .vscode/
 tstex_modules/
+
 hf_token.txt
+notes.txt
