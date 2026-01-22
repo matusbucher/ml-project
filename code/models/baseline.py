@@ -17,7 +17,7 @@ class RandomModel(ModelInterface):
 
 class AverageModel(ModelInterface):
     def __init__(self, normalized_data: NormalizedData = None):
-        self._average_label : float = 0.0
+        self._average_label: float = 0.0
 
         if normalized_data is not None:
             self.fit(normalized_data.train_data, normalized_data.train_labels)

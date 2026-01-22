@@ -1,7 +1,7 @@
-from typing import Dict, List
+from typing import Callable, Dict, List, Optional
 from sklearn.pipeline import Pipeline
 from sklearn.feature_extraction.text import TfidfVectorizer
-from sklearn.linear_model import Ridge
+from sklearn.svm import SVR
 from sklearn.model_selection import GridSearchCV
 
 from models.model_interface import ModelInterface
@@ -10,34 +10,45 @@ from utils import *
 
 
 class TfIdfModel(ModelInterface):
-    def __init__(self, normalized_data: NormalizedData = None, bounding_func : Callable[[float], float] = identity, regression_model = Ridge()):
-        if regression_model is None:
-            regression_model = Ridge()
+    @staticmethod
+    def __default_preprocess(text: str) -> str:
+        return normalize_whitespaces(insert_spaces(text.lower()))
+
+    def __init__(self, normalized_data: NormalizedData = None,
+                 bounding_func: Callable[[float], float] = identity,
+                 vectorizer: TfidfVectorizer = TfidfVectorizer(
+                     ngram_range=(1, 2),
+                     min_df=3,
+                     max_df=0.3,
+                     sublinear_tf=True,
+                     norm="l2",
+                     stop_words="english"),
+                 regression_model = SVR(kernel="linear", C=0.1, epsilon=0.1),
+                 preprocess: Optional[Callable[[str], str]] = None) -> None:
         
         self._model = Pipeline([
-            ("tfidf", TfidfVectorizer(
-                ngram_range=(1, 2),
-                min_df=5,
-                max_df=0.9,
-                sublinear_tf=True,
-                lowercase=True,
-                norm="l2"
-            )),
+            ("tfidf", vectorizer),
             ("regressor", regression_model)
         ])
         
         self._bounding_func = bounding_func
+        self._preprocess = preprocess if preprocess is not None else self.__default_preprocess
 
         if normalized_data is not None:
             self.fit(normalized_data.train_data, normalized_data.train_labels)
     
     def fit(self, data: List[Features], labels: List[float]) -> None:
-        X = self.__preprocess_data(data)
+        X = [self._preprocess(d.description) for d in data]
         self._model.fit(X, labels)
 
-    def search_fit(self, data: List[Features], labels: List[float], params : Dict[str, List[float]]) -> Dict[str, float]:
-        X = self.__preprocess_data(data)
-        new_params = {f"regressor__{key}": value for key, value in params.items()}
+    def search_fit(self, data: List[Features], labels: List[float], vectorizer_params: Optional[Dict[str, List[float]]] = None, regressor_params: Optional[Dict[str, List[float]]] = None) -> Dict[str, float]:
+        X = [self._preprocess(d.description) for d in data]
+
+        new_params = {}
+        if vectorizer_params is not None:
+            new_params.update({f"tfidf__{key}": value for key, value in vectorizer_params.items()})
+        if regressor_params is not None:
+            new_params.update({f"regressor__{key}": value for key, value in regressor_params.items()})
 
         search = GridSearchCV(self._model, new_params, cv=5, n_jobs=-1, scoring="neg_mean_squared_error")
         search.fit(X, labels)
@@ -46,8 +57,5 @@ class TfIdfModel(ModelInterface):
         return search.best_params_
     
     def predict(self, features: Features) -> float:
-        X = self.__preprocess_data([features])
+        X = [self._preprocess(features.description)]
         return self._bounding_func(self._model.predict(X)[0])
-
-    def __preprocess_data(self, data: List[Features]) -> List[str]:
-        return [remove_tex(d.description).lower() for d in data]

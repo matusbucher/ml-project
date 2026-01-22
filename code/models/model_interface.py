@@ -35,6 +35,6 @@ class ModelInterface(ABC):
     def get_metrics(self, data: List[Features], labels: List[float]) -> Dict[MetricType, float]:
         predictions = [self.predict(f) for f in data]
         return {
-            MetricType.R2: r2_score(labels, predictions),
-            MetricType.RMSE: root_mean_squared_error(labels, predictions),
+            MetricType.R2: round(r2_score(labels, predictions), 3),
+            MetricType.RMSE: round(root_mean_squared_error(labels, predictions), 3),
         }

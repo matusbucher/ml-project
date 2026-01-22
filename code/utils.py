@@ -5,6 +5,9 @@ import math
 from typing import List, Set
 
 
+OP_SYMBOLS = ["+", "-", "*", "/", "=", "<", ">", "(", ")", "[", "]", "{", "}", ",", ";", ":"]
+TEX_SYMBOLS = ["\\", "{", "}", "^", "_", "~", "%", "&", "#", "$"]
+
 STOPWORDS_FILE = "data/stopwords_english.json"
 
 
@@ -17,10 +20,18 @@ def sigmoid(x: float) -> float:
 def clip(x: float) -> float:
     return min(max(x, 0.0), 1.0)
 
+def normalize_whitespaces(text: str) -> str:
+    return re.sub(r"\s+", " ", text).strip()
+
+def insert_spaces(text: str) -> str:
+    # Insert spaces around mathematical operation symbols
+    for sym in OP_SYMBOLS:
+        text = text.replace(sym, f" {sym} ")
+    return text
+
 def remove_tex_symbols(text: str) -> str:
     # Remove common TeX symbols
-    symbols = ["\\", "{", "}", "^", "_", "~", "%", "&", "#", "$"]
-    for sym in symbols:
+    for sym in TEX_SYMBOLS:
         text = text.replace(sym, " ")
     return text
 
@@ -33,9 +44,6 @@ def remove_tex(text: str) -> str:
     result = re.sub(r"\$.*?\$", " ", result, flags=re.DOTALL)
 
     return result
-
-def stem_words(words: List[str], stem: Callable[[str], str]) -> None:
-    words[:] = [stem(word) for word in words]
 
 def filter_words(words: List[str], filter: Set[str], contains: bool) -> None:
     if contains:

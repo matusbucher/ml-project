@@ -146,7 +146,7 @@ class LingFeatures:
 
 
 class LingFeatureModel(ModelInterface):
-    def __init__(self, normalized_data: NormalizedData = None, bounding_func : Callable[[float], float] = identity, regression_model = None):
+    def __init__(self, normalized_data: NormalizedData = None, bounding_func: Callable[[float], float] = identity, regression_model = None):
         if regression_model is None:
             regression_model = GradientBoostingRegressor(
                 loss="squared_error",
@@ -175,7 +175,7 @@ class LingFeatureModel(ModelInterface):
         X = [LingFeatures(features.description).extract_features()]
         return self._bounding_func(self._model.predict(X)[0])
 
-    def search_fit(self, data: List[Features], labels: List[float], params : Dict[str, List[float]]) -> Dict[str, float]:
+    def search_fit(self, data: List[Features], labels: List[float], params: Dict[str, List[float]]) -> Dict[str, float]:
         X = [LingFeatures(d.description).extract_features() for d in data]
 
         search = GridSearchCV(self._model, params, cv=5, n_jobs=-1, scoring="neg_mean_squared_error")
