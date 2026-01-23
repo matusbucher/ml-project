@@ -14,7 +14,7 @@ class TfIdfModel(ModelInterface):
     def __default_preprocess(text: str) -> str:
         return normalize_whitespaces(insert_spaces(text.lower()))
 
-    def __init__(self, normalized_data: NormalizedData = None,
+    def __init__(self,
                  bounding_func: Callable[[float], float] = identity,
                  vectorizer: TfidfVectorizer = TfidfVectorizer(
                      ngram_range=(1, 2),
@@ -39,9 +39,6 @@ class TfIdfModel(ModelInterface):
         self._bounding_func = bounding_func
         self._preprocess = preprocess if preprocess is not None else self.__default_preprocess
 
-        if normalized_data is not None:
-            self.fit(normalized_data.train_data, normalized_data.train_labels)
-    
     def fit(self, data: List[Features], labels: List[float]) -> None:
         X = [self._preprocess(d.description) for d in data]
         self._model.fit(X, labels)

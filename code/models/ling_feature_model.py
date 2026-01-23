@@ -107,7 +107,7 @@ class LingFeatures:
 
 
 class LingFeatureModel(ModelInterface):
-    def __init__(self, normalized_data: NormalizedData = None,
+    def __init__(self,
                  bounding_func: Callable[[float], float] = identity,
                  regressor = GradientBoostingRegressor(
                      loss="squared_error",
@@ -123,9 +123,6 @@ class LingFeatureModel(ModelInterface):
         
         self._model = regressor
         self._bounding_func = bounding_func
-
-        if normalized_data is not None:
-            self.fit(normalized_data.train_data, normalized_data.train_labels)
 
     def fit(self, data: List[Features], labels: List[float]) -> None:
         X = [LingFeatures(d.description).feature_vector() for d in data]

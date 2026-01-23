@@ -28,10 +28,6 @@ class ModelInterface(ABC):
         predictions = [self.predict(f) for f in data]
         return root_mean_squared_error(labels, predictions)
     
-    def mae(self, data: List[Features], labels: List[float]) -> float:
-        predictions = [self.predict(f) for f in data]
-        return mean_absolute_error(labels, predictions)
-    
     def get_metrics(self, data: List[Features], labels: List[float]) -> Dict[MetricType, float]:
         predictions = [self.predict(f) for f in data]
         return {

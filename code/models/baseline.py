@@ -16,11 +16,8 @@ class RandomModel(ModelInterface):
 
 
 class AverageModel(ModelInterface):
-    def __init__(self, normalized_data: NormalizedData = None):
+    def __init__(self):
         self._average_label: float = 0.0
-
-        if normalized_data is not None:
-            self.fit(normalized_data.train_data, normalized_data.train_labels)
 
     def fit(self, data: List[Features], labels: List[float]) -> None:
         self._average_label = sum(labels) / len(labels)
@@ -30,12 +27,8 @@ class AverageModel(ModelInterface):
 
 
 class DescriptionLengthModel(ModelInterface):
-    def __init__(self, normalized_data: NormalizedData = None):
+    def __init__(self):
         self._reg = LinearRegression()
-
-        if normalized_data is not None:
-            self.fit(normalized_data.train_data, normalized_data.train_labels)
-            return
     
     def fit(self, data: List[Features], labels: List[float]) -> None:
         X = [[len(f.description)] for f in data]
@@ -47,12 +40,8 @@ class DescriptionLengthModel(ModelInterface):
 
 
 class SolutionLengthModel(ModelInterface):
-    def __init__(self, normalized_data: NormalizedData = None):
+    def __init__(self):
         self._reg = LinearRegression()
-
-        if normalized_data is not None:
-            self.fit(normalized_data.train_data, normalized_data.train_labels)
-            return
     
     def fit(self, data: List[Features], labels: List[float]) -> None:
         X = [[len(f.solution)] for f in data]
