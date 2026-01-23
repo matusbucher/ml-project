@@ -18,12 +18,17 @@ class TfIdfModel(ModelInterface):
                  bounding_func: Callable[[float], float] = identity,
                  vectorizer: TfidfVectorizer = TfidfVectorizer(
                      ngram_range=(1, 2),
-                     min_df=3,
-                     max_df=0.3,
                      sublinear_tf=True,
+                     stop_words="english",
                      norm="l2",
-                     stop_words="english"),
-                 regression_model = SVR(kernel="linear", C=0.1, epsilon=0.1),
+                     min_df=3,
+                     max_df=0.3
+                 ),
+                 regression_model = SVR(
+                     kernel="linear",
+                     C=0.1,
+                     epsilon=0.1
+                 ),
                  preprocess: Optional[Callable[[str], str]] = None) -> None:
         
         self._model = Pipeline([
