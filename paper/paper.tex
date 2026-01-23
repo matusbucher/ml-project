@@ -30,7 +30,7 @@
 \begin{document}
 
 \title{Model for Math Problems Difficulty Prediction}
-\subtitle{Machine Learning Project Paper}
+\subtitle{Machine Learning Project Report}
 \author{Matus Bucher \\ \email{bucher5@uniba.sk}}
 \institute{Comenius University in Bratislava, \\ Faculty of Mathematics, Physics and Informatics}
 
@@ -41,8 +41,9 @@
 
 
 \section{Introduction}
+\label{sec:intro}
 
-In this project, we implement and evaluate a model for predicting the difficulty of mathematical problems using a range of preprocessing techniques and machine learning methods. Then we compare the performance of these modeling approaches. Everything was implemented in Python using libraries Scikit-learn, Numpy, TensorFlow (Keras).
+In this project, we implement and evaluate a model for predicting the difficulty of mathematical problems using a range of preprocessing techniques and machine learning methods. Then we compare the performance of these modeling approaches. Everything was implemented in Python using libraries Numpy \cite{numpy}, Scikit-learn \cite{scikit-learn}, TensorFlow (Keras) \cite{tensorflow} and textstat \cite{textstat}.
 
 We used publicly available datasets of mathematical problems (spanning areas such as algebra, calculus, geometry, combinatorics, etc.), which are usually meant for reasoning language models. These datasets, originally designed for evaluating mathematical reasoning in language models, often include estimated difficulty annotations, which we use as supervision for model training.
 
@@ -50,6 +51,7 @@ Accurate difficulty prediction (not only for mathematical problems, but generall
 
 
 \section{Datasets}
+\label{sec:datasets}
 
 We selected two datasets that include explicit difficulty annotations, but in different formats.
 
@@ -99,6 +101,7 @@ For all model training, we used an $80:20$ train-test split. Together with filte
 
 
 \section{Model Description}
+\label{sec:model}
 
 Based on the selected datasets, the primary input to our model is the problem statement provided as raw text, including \TeX{} notation. An optional inputs is the solution description.
 
@@ -112,6 +115,7 @@ The \textit{rating} label in the Easy2Hard-Bench dataset is already in normalize
 
 
 \section{Baseline Models}
+\label{sec:baselines}
 
 We considered four simple baseline models to establish reference performance levels:
 
@@ -127,7 +131,7 @@ We considered four simple baseline models to establish reference performance lev
 
 \end{itemize}
 
-In \cref{tab:baseline-math} and \cref{tab:baseline-e2h}, we can see measured scored of each model on the two datasets. We chose two metrics -- R-squared ($R^2$) and root mean squared error (RMSE).
+In the \cref{tab:baseline-math} and the \cref{tab:baseline-e2h}, we can see measured scored of each model on the two datasets. We chose two metrics -- R-squared ($R^2$) and root mean squared error (RMSE).
 
 \vspace{6pt}
 
@@ -175,6 +179,8 @@ Among the baseline models, the solution length model achieves the highest accura
 
 
 \section{Preprocessing Approaches}
+\label{sec:preprocessing}
+
 The primary input to our model is natural language text, but it also contains mathematical notation in \TeX{} format, which might or might not carry useful information for difficulty prediction. Therefore, when implementing our models, we experimented with different preprocessing strategies:
 
 \begin{enumerate}[label=(\alph*)]
@@ -189,23 +195,20 @@ Apart from these three approaches, we applied standard preprocessing steps, incl
 
 
 \section{TF-IDF with Linear Regression}
+\label{sec:tfidf}
 
 For a starting point, we chose a simple approach combining \textit{TF-IDF} text vectorization with a linear regression model. The reason behind choosing a linear model is that TF-IDF produces high-dimensional sparse vectors, which linear models can handle well.
 
-We tried two different linear models -- \textit{Ridge regression} and \textit{SVR} (Support Vector Regressor) \textit{with linear kernel}. We also experimented with hyperparameters of both the vectorizer and the regression models using grid search with 5-fold cross-validation and negative mean squared error as the estimator.
+We tried two different linear models -- \textit{Ridge regression} and \textit{SVR} (Support Vector Regressor) \textit{with linear kernel}. We also experimented with hyperparameters of both the vectorizer and the regression models using grid search with 5-fold cross-validation and negative mean squared error as the estimator. We utilized Scikit-learn's \texttt{TfidfVectorizer}, \texttt{Ridge}, and \texttt{SVR} implementations, as well as \texttt{GridSearchCV} for hyperparameter tuning.
 
-We utilized Scikit-learn's \texttt{TfidfVectorizer}, \texttt{Ridge}, and \texttt{SVR} implementations, as well as \texttt{GridSearchCV} for hyperparameter tuning.
-
-For \texttt{Ridge}, we searched over \texttt{alpha} -- regularization strength. For \texttt{SVR}, we searched over \texttt{C} (regularization parameter) and \texttt{epsilon} (specifies the epsilon-tube).
-
-For \texttt{TfidfVectorizer}, we searched over the following hyperparameters:
+For \texttt{Ridge}, we searched over \texttt{alpha} -- regularization strength. For \texttt{SVR}, we searched over \texttt{C} (regularization parameter) and \texttt{epsilon} (specifies the epsilon-tube). For \texttt{TfidfVectorizer}, we searched over the following hyperparameters:
 
 \begin{itemize}
 \item \texttt{min\_df} -- Minimal document occurrence for a token to be kept.
 \item \texttt{max\_df} -- Maximal document frequency (percentage) for a token to be kept.
 \end{itemize}
 
-Aside from these hyperparameters, which we fine-tuned, we fixed the following settings for \texttt{TfidfVectorizer}:
+Aside from those, we fixed the following settings for \texttt{TfidfVectorizer}:
 
 \begin{itemize}
 \item \texttt{ngram\_range=(1,2)} -- Using unigrams and bigrams. Captures fixed phrases such as ``partial derivative'' or ``solve for''.
@@ -228,7 +231,7 @@ In results from the grid search, the optimal values for hyperparameters were alw
 
 The fine-tuned value of \texttt{min\_df} indicates that removing very rare tokens improves model performance, while the value of \texttt{max\_df} suggests that removing common tokens (appearing in more than 30\% of documents) is also beneficial. This is quite expected result, although the \texttt{max\_df} value is a bit lower than usual (the reason is probably common mathematical language).
 
-For evaluation of models, we fixed hyperparameters to the found best values. In \cref{tab:tfidf-math} and \cref{tab:tfidf-e2h}, we can see the train and test scores with all three preprocessing approaches.
+For evaluation of models, we fixed hyperparameters to the found best values. In the \cref{tab:tfidf-math} and the \cref{tab:tfidf-e2h}, we can see the train and test scores with all three preprocessing approaches.
 
 \vspace{6pt}
 
@@ -299,9 +302,207 @@ Overall, the best performing model on both datasets is TF-IDF combined with Ridg
 \end{itemize}
 
 
-\section{Linguistic Features with Gradient Boosting}
+\section{Linguistic Features with Tree-Based Model}
+\label{sec:linguistic}
+
+Another approach we experimented with is using linguistic features extracted from the solution description, combined with a tree-based regression model. This choice comes from the fact that linguistic feature vector is low-dimensional and dense, making it suitable for such models.
+
+We used textstat library for linguistic features extraction together with some own implemented features. The final feature set includes:
+
+\begin{itemize}
+\item \textbf{sentence count}
+\item \textbf{lexicon (words) count}
+\item \textbf{syllable count}
+\item \textbf{Flesch reading ease}
+\item \textbf{Flesch-Kincaid grade level}
+\item \textbf{Dale-Chall readability score}
+\item \textbf{difficult words count} -- textstat's \texttt{difficult\_words} function, estimates the number of challenging or complex words
+\item \textbf{math expression count} -- detected via \TeX{} math environments
+\item \textbf{numbers count} -- number of ``numerical words'' in the text
+\item \textbf{operators count} -- number of mathematical operators (e.g., +, -, /, ...)
+\item \textbf{variables count} -- number of isolated letters inside math expressions
+\end{itemize}
+
+Since feature extraction makes up the whole prepocessing step, we don't need to consider approaches from the \cref{sec:preprocessing} here. However, we used description without \TeX{} (approach (b)) for almost all feature extraction functions, except for math expression count, numbers count, operators count, and variables count, which require \TeX{} math environments to be present.
+
+As with TF-IDF model, we compare two different regression models -- \textit{Random Forest Regressor} and \textit{Gradient Boosting Regressor}. Since these models have several hyperparameters, we performed corss-validated grid search (5-fold, negative mean squared error). We use \texttt{RandomForestRegressor}, \texttt{GradientBoostingRegressor}, and once again \texttt{GridSearchCV} from Scikit-learn library.
+
+We list the hyperparameters values we searched over below, as well as ones we fixed:
+
+\begin{itemize}
+
+\item \texttt{RandomForestRegressor}
+\begin{itemize}
+\item fixed: \texttt{bootstrap=True}
+\item fine-tuned:
+\begin{itemize}
+\item \texttt{n\_estimators}: \{ 300, 500, 700 \}
+\item \texttt{max\_depth}: \{ 5, 10, 20 \}
+\item \texttt{min\_samples\_split}: \{ 10, 20, 50 \}
+\item \texttt{min\_samples\_leaf}: \{ 3, 5, 10 \}
+\item \texttt{max\_features}: \{ 0.6, 0.8, 1.0 \}
+\end{itemize}
+\end{itemize}
+
+\vspace{6pt}
+
+\item \texttt{GradientBoostingRegressor}
+\begin{itemize}
+\item fixed: \texttt{loss="squared\_error"}, \texttt{max\_features=None}
+\item fine-tuned:
+\begin{itemize}
+\item \texttt{n\_estimators}: \{ 300, 500, 700 \}
+\item \texttt{learning\_rate}: \{ 0.01, 0.1, 0.5 \}
+\item \texttt{max\_depth}: \{ 5, 10, 20 \}
+\item \texttt{min\_samples\_split}: \{ 10, 20, 50 \}
+\item \texttt{min\_samples\_leaf}: \{ 3, 5, 10 \}
+\item \texttt{subsample}: \{ 0.6, 0.8, 1.0 \}
+\end{itemize}
+\end{itemize}
+
+\end{itemize}
+
+Unlike with TF-IDF model, the found values varied between datasets (partially because of different datasets sizes). Their are shown in the \cref{tab:rf-hyperparams} and in the \cref{tab:gbr-hyperparams}. The evaluated scores with the best hyperparameters are shown in the \cref{tab:rf-math} and in the \cref{tab:gb-e2h}.
+
+\vspace{6pt}
+
+\begin{minipage}{\linewidth}
+\centering
+\captionof{table}{\texttt{RandomForestRegressor} hyperparameters for each dataset}
+\label{tab:rf-hyperparams}
+\begin{tabular}{@{}|Sc|Sc|Sc|@{}}
+\hline
+\textbf{Hyperparameter} & \textbf{MATH-lighteval} & \textbf{Easy2Hard-Bench} \\
+\hline
+n\_estimators & 300 & 500 \\
+max\_depth & 20 & 10 \\
+min\_samples\_split & 10 & 10 \\
+min\_samples\_leaf & 3 & 3 \\
+max\_features & 0.6 & 0.8 \\
+\hline
+\end{tabular}
+\end{minipage}
+
+\vspace{12pt}
+
+\begin{minipage}{\linewidth}
+\centering
+\captionof{table}{\texttt{GradientBoostingRegressor} hyperparameters for each dataset}
+\label{tab:gbr-hyperparams}
+\begin{tabular}{@{}|Sc|Sc|Sc|@{}}
+\hline
+\textbf{Hyperparameter} & \textbf{MATH-lighteval} & \textbf{Easy2Hard-Bench} \\
+\hline
+n\_estimators & 300 & 700 \\
+learning\_rate & 0.01 & 0.01 \\
+max\_depth & 10 & 5 \\
+min\_samples\_split & 20 & 50 \\
+min\_samples\_leaf & 3 & 10 \\
+subsample & 0.6 & 0.8 \\
+\hline
+\end{tabular}
+\end{minipage}
+
+\vspace{12pt}
+
+\begin{minipage}{\linewidth}
+
+\centering
+\captionof{table}{Scores for LingFeature + RandomForestRegressor and GradientBoostingRegressor on MATH-lighteval}
+\label{tab:rf-math}
+\begin{tabular}{@{}|Sc|ScSc|ScSc|@{}}
+\hline
+\textbf{Model} & \multicolumn{2}{Sc|}{\textbf{Train}} & \multicolumn{2}{Sc|}{\textbf{Test}} \\
+\cline{2-5}
+ & $R^2$ & RMSE & $R^2$ & RMSE \\
+\hline
+\raggedright Random Forest & 0.654 & 0.152 & 0.295 & 0.217 \\
+\raggedright Gradient Boosting & 0.547 & 0.174 & 0.297 & 0.217 \\
+\hline
+\end{tabular}
+\end{minipage}
+
+\vspace{12pt}
+
+\begin{minipage}{\linewidth}
+
+\centering
+\captionof{table}{Scores for LingFeature + RandomForestRegressor and GradientBoostingRegressor on Easy2Hard-Bench}
+\label{tab:gb-e2h}
+\begin{tabular}{@{}|Sc|ScSc|ScSc|@{}}
+\hline
+\textbf{Model} & \multicolumn{2}{Sc|}{\textbf{Train}} & \multicolumn{2}{Sc|}{\textbf{Test}} \\
+\cline{2-5}
+ & $R^2$ & RMSE & $R^2$ & RMSE \\
+\hline
+\raggedright Random Forest & 0.67 & 0.14 & 0.444 & 0.183 \\
+\raggedright Gradient Boosting & 0.606 & 0.153 & 0.457 & 0.18 \\
+\hline
+\end{tabular}
+\end{minipage}
+
+\vspace{6pt}
+
+Both models achieve very similar performance on both datasets. Maybe Random Forest is slightly overfitting, which we can see from the train vs. test scores. Therefore we take the Gradient Boosting model as the representative one. Compared against the baseline models (description length and solution length), the error reductions on the test sets are as follows:
+
+\begin{itemize}
+
+\item \textbf{Description Length Baseline vs. TF-IDF + Ridge}
+\begin{itemize}
+\item MATH-lighteval: 0.313 $\to$ 0.217 -- $\approx 30.67\%$ error reduction
+\item Easy2Hard-Bench: 0.246 $\to$ 0.18 -- $\approx 26.83\%$ error reduction
+\end{itemize}
+
+\item \textbf{Solution Length Baseline vs. TF-IDF + Ridge}
+\begin{itemize}
+\item MATH-lighteval: 0.287 $\to$ 0.217 -- $\approx 24.39\%$ error reduction
+\item Easy2Hard-Bench: 0.229 $\to$ 0.18 -- $\approx 21.4\%$ error reduction
+\end{itemize}
+
+\end{itemize}
+
+This model performs worse than the TF-IDF + Ridge model from the previous section. Of course, the choice of linguistic features is very important here -- different or additional features could improve the performance.
+
+This approach gives still give us some useful information, since the features are interpretable. We can retrieve feature importances from the trained models (Scikit-learn implementations provide this functionality out-of-the-box). In the \cref{tab:importances}, we list feature importances for all four trained models and their average importance. In the table, we denote
+
+\begin{itemize}
+\item $M_{RF}$ -- Random Forest on MATH-lighteval
+\item $M_{GB}$ -- Gradient Boosting on MATH-lighteval
+\item $E_{RF}$ -- Random Forest on Easy2Hard-Bench
+\item $E_{GB}$ -- Gradient Boosting on Easy2Hard-Bench
+\end{itemize}
+
+\vspace{6pt}
+
+\begin{minipage}{\linewidth}
+\centering
+\captionof{table}{}
+\label{tab:importances}
+\begin{tabular}{@{}|Sc|Sc|Sc|Sc|Sc|Sc|@{}}
+\hline
+\textbf{Feature} & \textbf{$M_{RF}$} & \textbf{$M_{GB}$} & \textbf{$E_{RF}$} & \textbf{$E_{GB}$} & \textbf{Average} \\
+\hline
+sentence c. & 0.0134 & 0.0117 & 0.0140 & 0.0137 & 0.0132 \\
+lexicon c. & 0.0904 & 0.0674 & 0.0468 & 0.0396 & 0.0611 \\
+syllable c. & 0.1494 & 0.1507 & 0.0591 & 0.0629 & 0.1055 \\
+FRE & 0.0909 & 0.0949 & 0.0531 & 0.0451 & 0.0710 \\
+FKGL & 0.0980 & 0.1016 & 0.0995 & 0.0983 & 0.0994 \\
+Dale-Chall & 0.1248 & 0.1395 & 0.1227 & 0.1305 & 0.1294 \\
+difficult w. c. & 0.1014 & 0.1009 & 0.0375 & 0.0289 & 0.0672 \\
+math expr. c. & 0.0809 & 0.0826 & 0.0725 & 0.0768 & 0.0782 \\
+numbers c. & 0.0640 & 0.0633 & 0.0609 & 0.0552 & 0.0608 \\
+operators c. & 0.0947 & 0.0990 & 0.0751 & 0.0353 & 0.0760 \\
+variables c. & 0.0922 & 0.0884 & 0.3587 & 0.4134 & 0.2382 \\
+\hline
+\end{tabular}
+\end{minipage}
+
+\vspace{6pt}
+
+From the table, we can see that the most important features (on average) are variables count, Dale-Chall readability score and syllable count (which is highly correlated with text length). On the other hand, sentence count are by far the least important feature. We can also observe differences between datasets -- for example, variables count is much more important for Easy2Hard-Bench dataset than for MATH-lighteval.
 
 
 \printbibliography
+
 
 \end{document}
