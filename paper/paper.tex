@@ -43,7 +43,7 @@
 \section{Introduction}
 \label{sec:intro}
 
-In this project, we implement and evaluate a model for predicting the difficulty of mathematical problems using a range of preprocessing techniques and machine learning methods. Then we compare the performance of these modeling approaches. Everything was implemented in Python using libraries Numpy \cite{numpy}, Scikit-learn \cite{scikit-learn}, TensorFlow (Keras) \cite{tensorflow} and textstat \cite{textstat}.
+In this project, we implement and evaluate a model for predicting the difficulty of mathematical problems using a range of preprocessing techniques and machine learning methods. Then we compare the performance of these modeling approaches. Everything was implemented in Python using libraries Numpy \cite{numpy}, Scikit-learn \cite{scikit-learn}, Textstat \cite{textstat}, PyTorch \cite{pytorch} and Transformers \cite{transformers}.
 
 We used publicly available datasets of mathematical problems (spanning areas such as algebra, calculus, geometry, combinatorics, etc.), which are usually meant for reasoning language models. These datasets, originally designed for evaluating mathematical reasoning in language models, often include estimated difficulty annotations, which we use as supervision for model training.
 
@@ -56,46 +56,44 @@ Accurate difficulty prediction (not only for mathematical problems, but generall
 We selected two datasets that include explicit difficulty annotations, but in different formats.
 
 \begin{itemize}
-
-\item \textbf{MATH-lighteval} \cite{math} (\href{https://huggingface.co/datasets/DigitalLearningGmbH/MATH-lighteval}{\textcolor{blue}{link}})
-\begin{itemize}
-\item \textbf{rows:} 12{,}500
-\item \textbf{difficulty label:} \textit{level} -- integer number from 1 to 5 (level 1 means the lowest difficulty)
-\item \textbf{other features:} solution description; problem type (algebra, counting \& probability, geometry, intermediate algebra, number Theory, prealgebra, precalculus)
-\end{itemize}
+    \item \textbf{MATH-lighteval} \cite{math} (\href{https://huggingface.co/datasets/DigitalLearningGmbH/MATH-lighteval}{\textcolor{blue}{link}})
+    \begin{itemize}
+        \item \textbf{rows:} 12{,}500
+        \item \textbf{difficulty label:} \textit{level} -- integer number from 1 to 5 (level 1 means the lowest difficulty)
+        \item \textbf{other features:} solution description; problem type (algebra, counting \& probability, geometry, intermediate algebra, number Theory, prealgebra, precalculus)
+    \end{itemize}
 
 \vspace{10pt}
 
-\item \textbf{Easy2Hard-Bench} (E2H-AMC subset) \cite{easy2hard} (\href{https://huggingface.co/datasets/furonghuang-lab/Easy2Hard-Bench}{\textcolor{blue}{link}})
-\begin{itemize}
-\item \textbf{rows:} 3{,}980
-\item \textbf{difficulty label:} \textit{rating} -- float number in the range $(0,1)$ (the smaller number the lower difficulty)
-\item \textbf{other features:} numerical answer; solution description; contest metadata (name, year, contest type); auxiliary difficulty estimates (e.g., standard deviation, unnormalized rating, lower/upper bounds suggested by AoPS)
-\end{itemize}
-
+    \item \textbf{Easy2Hard-Bench} (E2H-AMC subset) \cite{easy2hard} (\href{https://huggingface.co/datasets/furonghuang-lab/Easy2Hard-Bench}{\textcolor{blue}{link}})
+    \begin{itemize}
+        \item \textbf{rows:} 3{,}980
+        \item \textbf{difficulty label:} \textit{rating} -- float number in the range $(0,1)$ (the smaller number the lower difficulty)
+        \item \textbf{other features:} numerical answer; solution description; contest metadata (name, year, contest type); auxiliary difficulty estimates (e.g., standard deviation, unnormalized rating, lower/upper bounds suggested by AoPS)
+    \end{itemize}
 \end{itemize}
 
 In both datasets, problem statements are provided as text in \TeX{} format, describing the problem in natural language (English) and mathematical formulas.
 
-Each dataset also includes solution descriptions (also in text representation), which can optionally be used as model inputs. We experimented with this option in our project. However, in practical scenario, difficulty estimation should ideally rely solely on the problem statement, without requiring access to a solution. Moreover, problem may have multiple valid solutions -- choosing one solution over other should not change the problem difficulty (or at least not that much). On the other hand, it can serve as a measure of how much difficulty information is not visible in the statement alone.
+Each dataset also includes solution descriptions (also in text representation), which can optionally be used as model inputs. However, we did not experiment with this option in our project. Even in practical scenario, difficulty estimation should ideally rely solely on the problem statement, without requiring access to a solution. Still, we used it for one of the baseline models (see \cref{sec:baselines}).
 
 For all model training, we used an $80:20$ train-test split. Together with filtering out invalid samples (e.g., missing difficulty labels), the resulting dataset sizes were as follows:
 
 \begin{itemize}
 
-\item \textbf{MATH-lighteval}
-\begin{itemize}
-\item \textbf{train:} 9{,}998
-\item \textbf{test:} 2{,}500
-\end{itemize}
+    \item \textbf{MATH-lighteval}
+    \begin{itemize}
+        \item train: 9{,}998
+        \item test: 2{,}500
+    \end{itemize}
 
 \vspace{10pt}
 
-\item \textbf{Easy2Hard-Bench}
-\begin{itemize}
-\item \textbf{train:} 3{,}180
-\item \textbf{test:} 795
-\end{itemize}
+    \item \textbf{Easy2Hard-Bench}
+    \begin{itemize}
+        \item train: 3{,}180
+        \item test: 795
+    \end{itemize}
 
 \end{itemize}
 
@@ -103,15 +101,21 @@ For all model training, we used an $80:20$ train-test split. Together with filte
 \section{Model Description}
 \label{sec:model}
 
-Based on the selected datasets, the primary input to our model is the problem statement provided as raw text, including \TeX{} notation. An optional inputs is the solution description.
+Based on the selected datasets, the primary input to our model is the problem statement provided as raw text, including \TeX{} notation.
 
-The model outputs a single continuous value in the range $[0,1]$, representing the estimated difficulty of a problem, where 0 corresponds to the lowest difficulty. This unified representation enables combining the two datasets.
+The model outputs a single continuous value in the range $[0,1]$, representing the estimated difficulty of a problem, where 0 corresponds to the lowest difficulty and 1 to the highest difficulty. This unified representation enables combining the two datasets (see \cref{sec:combine}). It also allows for easier evaluation of model performance (e.g., using RMSE metric).
 
 Accordingly, the discrete \textit{level} label in the MATH-lighteval dataset needs to be mapped to $[0,1]$. In order to avoid having large number of marginal labels in training data, we use linear normalization from $[1,5]$ to $[0.1,0.9]$ (level 1 maps to $0.1$, level 5 maps to $0.9$) as follows:
 
 $$ \text{normalize}(l) = 0.1 + 0.2(l - 1) $$
 
 The \textit{rating} label in the Easy2Hard-Bench dataset is already in normalized format and does not require additional transformation.
+
+The continuous output implies a regression task. Since we defined the output range to be $[0,1]$, we need to ensure that the model predictions also lie within this interval. Therefore, we apply a bounding function to the model outputs -- but only at evaluation time, not during training. We used a simple clipping:
+
+$$ \text{clip}(x) = \min(\max(x, 0), 1) $$
+
+Suitable alternative would be a sigmoid function, but we found clipping to be sufficient for our purposes.
 
 
 \section{Baseline Models}
@@ -120,73 +124,68 @@ The \textit{rating} label in the Easy2Hard-Bench dataset is already in normalize
 We considered four simple baseline models to establish reference performance levels:
 
 \begin{itemize}
-
-\item \textbf{Random Model} -- Predicts a difficulty value sampled uniformly at random from the interval $(0,1)$.
-
-\item \textbf{Average Model} -- Predicts the mean difficulty value computed from the training data.
-
-\item \textbf{Description Length Model} -- A linear regression model using the length of the problem description as the sole feature, with predictions bounded to $[0,1]$\footnote{Bounding is applied only at evaluation time, not during training.}.
-
-\item \textbf{Solution Length Model} -- A linear regression model using the length of the solution description as the sole feature, with predictions bounded to $[0,1]$.
-
+    \item \textbf{Random Model} -- Predicts a difficulty value sampled uniformly at random from the interval $(0,1)$.
+    \item \textbf{Average Model} -- Predicts the mean difficulty value computed from the training data.
+    \item \textbf{Description Length Model} -- A linear regression model using the length of the problem description as the sole feature, with predictions bounded to $[0,1]$\footnote{Bounding is applied only at evaluation time, not during training.}.
+    \item \textbf{Solution Length Model} -- A linear regression model using the length of the solution description as the sole feature, with predictions bounded to $[0,1]$.
 \end{itemize}
 
 In the \cref{tab:baseline-math} and the \cref{tab:baseline-e2h}, we can see measured scored of each model on the two datasets. We chose two metrics -- R-squared ($R^2$) and root mean squared error (RMSE).
 
-\vspace{6pt}
+\vspace{5pt}
 
 \begin{minipage}{\linewidth}
-\centering
-\captionof{table}{Baseline model performance on MATH-lighteval}
-\label{tab:baseline-math}
-\begin{tabular}{@{}|Sc|ScSc|ScSc|@{}}
-\hline
-\textbf{Model} & \multicolumn{2}{Sc|}{\textbf{Train}} & \multicolumn{2}{Sc|}{\textbf{Test}} \\
-\cline{2-5}
- & $R^2$ & RMSE & $R^2$ & RMSE \\
-\hline
-\raggedright Random & -0.955 & 0.452 & -0.981 & 0.454 \\
-\raggedright Average & 0.000 & 0.323 & 0.000 & 0.323 \\
-\raggedright Description Length & 0.059 & 0.313 & 0.061 & 0.313 \\
-\raggedright Solution Length & 0.210 & 0.287 & 0.210 & 0.287 \\
-\hline
-\end{tabular}
+    \centering
+    \captionof{table}{Scores for baseline models on MATH-lighteval}
+    \label{tab:baseline-math}
+    \begin{tabular}{@{}|Sc|ScSc|ScSc|@{}}
+        \hline
+        \textbf{Model} & \multicolumn{2}{Sc|}{\textbf{Train}} & \multicolumn{2}{Sc|}{\textbf{Test}} \\
+        \cline{2-5}
+        & $R^2$ & RMSE & $R^2$ & RMSE \\
+        \hline
+        \raggedright Random & -0.955 & 0.452 & -0.981 & 0.454 \\
+        \raggedright Average & 0.000 & 0.323 & 0.000 & 0.323 \\
+        \raggedright Description Length & 0.059 & 0.313 & 0.061 & 0.313 \\
+        \raggedright Solution Length & 0.210 & 0.287 & 0.210 & 0.287 \\
+        \hline
+    \end{tabular}
 \end{minipage}
 
-\vspace{12pt}
+\vspace{10pt}
 
 \begin{minipage}{\linewidth}
-\centering
-\captionof{table}{Baseline model performance on Easy2Hard-Bench}
-\label{tab:baseline-e2h}
-\begin{tabular}{@{}|Sc|ScSc|ScSc|@{}}
-\hline
-\textbf{Model} & \multicolumn{2}{Sc|}{\textbf{Train}} & \multicolumn{2}{Sc|}{\textbf{Test}} \\
-\cline{2-5}
- & $R^2$ & RMSE & $R^2$ & RMSE \\
-\hline
-\raggedright Random & -1.485 & 0.385 & -1.430 & 0.382 \\
-\raggedright Average & 0.000 & 0.244 & -0.002 & 0.245 \\
-\raggedright Description Length & 0.001 & 0.244 & -0.005 & 0.246 \\
-\raggedright Solution Length & 0.161 & 0.224 & 0.124 & 0.229 \\
-\hline
-\end{tabular}
+    \centering
+    \captionof{table}{Scores for baseline models on Easy2Hard-Bench}
+    \label{tab:baseline-e2h}
+    \begin{tabular}{@{}|Sc|ScSc|ScSc|@{}}
+        \hline
+        \textbf{Model} & \multicolumn{2}{Sc|}{\textbf{Train}} & \multicolumn{2}{Sc|}{\textbf{Test}} \\
+        \cline{2-5}
+        & $R^2$ & RMSE & $R^2$ & RMSE \\
+        \hline
+        \raggedright Random & -1.485 & 0.385 & -1.430 & 0.382 \\
+        \raggedright Average & 0.000 & 0.244 & -0.002 & 0.245 \\
+        \raggedright Description Length & 0.001 & 0.244 & -0.005 & 0.246 \\
+        \raggedright Solution Length & 0.161 & 0.224 & 0.124 & 0.229 \\
+        \hline
+    \end{tabular}
 \end{minipage}
 
-\vspace{6pt}
+\vspace{5pt}
 
-Among the baseline models, the solution length model achieves the highest accuracy. However, it relies on an optional feature; therefore, the description length model is still relevant for later comparisons.
+Among the baseline models, the solution length model achieves the highest accuracy. However, it relies on an optional feature; therefore, the description length model is still relevant for later comparisons, as it uses the same input feature as our later models.
 
 
 \section{Preprocessing Approaches}
 \label{sec:preprocessing}
 
-The primary input to our model is natural language text, but it also contains mathematical notation in \TeX{} format, which might or might not carry useful information for difficulty prediction. Therefore, when implementing our models, we experimented with different preprocessing strategies:
+The primary input to our model is a natural language text, but it also contains mathematical notation in \TeX{} format, which might or might not carry useful information for difficulty prediction. Therefore, when implementing our models, we experimented with different preprocessing strategies:
 
 \begin{enumerate}[label=(\alph*)]
-\item \textbf{keep everything} -- The raw text is used as-is, including all \TeX{} commands and mathematical symbols.
-\item \textbf{remove \TeX{}} -- All \TeX{} commands and mathematical symbols are stripped from the text, including whole equations and environments. This leaves only the natural language parts of the problem statement.
-\item \textbf{remove \TeX{} symbols} -- Only some \TeX{} symbols are removed (e.g., \texttt{\textbackslash}, \texttt{\$}, \texttt{\{\}}, ...), while keeping the rest of the text intact. This keeps numbers and expressions, but don't removes \TeX{} commands (this might be desired).
+    \item \textbf{keep everything} -- The raw text is used as-is, including all \TeX{} commands and mathematical symbols.
+    \item \textbf{remove \TeX{}} -- All \TeX{} commands and mathematical symbols are stripped from the text, including whole equations and environments. This leaves only the natural language parts of the problem statement.
+    \item \textbf{remove \TeX{} symbols} -- Only some \TeX{} symbols are removed (e.g., \texttt{\textbackslash}, \texttt{\$}, \texttt{\{\}}, ...), while keeping the rest of the text intact. This keeps numbers and expressions, but don't removes \TeX{} commands (this might be desired).
 \end{enumerate}
 
 In the following sections, we will refer to these approaches as (a), (b), and (c).
@@ -199,22 +198,24 @@ Apart from these three approaches, we applied standard preprocessing steps, incl
 
 For a starting point, we chose a simple approach combining \textit{TF-IDF} text vectorization with a linear regression model. The reason behind choosing a linear model is that TF-IDF produces high-dimensional sparse vectors, which linear models can handle well.
 
-We tried two different linear models -- \textit{Ridge regression} and \textit{SVR} (Support Vector Regressor) \textit{with linear kernel}. We also experimented with hyperparameters of both the vectorizer and the regression models using grid search with 5-fold cross-validation and negative mean squared error as the estimator. We utilized Scikit-learn's \texttt{TfidfVectorizer}, \texttt{Ridge}, and \texttt{SVR} implementations, as well as \texttt{GridSearchCV} for hyperparameter tuning.
+We tried two different linear models -- \textit{Ridge regression} and \textit{SVR} (Support Vector Regressor) \textit{with linear kernel}. We also experimented with hyperparameters of both the vectorizer and the regression models using grid search with 5-fold cross-validation and negative mean squared error as the estimator. We utilized Scikit-learn's \cite{scikit-learn} \texttt{TfidfVectorizer}, \texttt{Ridge}, and \texttt{SVR} implementations, as well as \texttt{GridSearchCV} for hyperparameter tuning.
+
+\subsection{Hyperparameter Optimization}
 
 For \texttt{Ridge}, we searched over \texttt{alpha} -- regularization strength. For \texttt{SVR}, we searched over \texttt{C} (regularization parameter) and \texttt{epsilon} (specifies the epsilon-tube). For \texttt{TfidfVectorizer}, we searched over the following hyperparameters:
 
 \begin{itemize}
-\item \texttt{min\_df} -- Minimal document occurrence for a token to be kept.
-\item \texttt{max\_df} -- Maximal document frequency (percentage) for a token to be kept.
+    \item \texttt{min\_df} -- Minimal document occurrence for a token to be kept.
+    \item \texttt{max\_df} -- Maximal document frequency (percentage) for a token to be kept.
 \end{itemize}
 
 Aside from those, we fixed the following settings for \texttt{TfidfVectorizer}:
 
 \begin{itemize}
-\item \texttt{ngram\_range=(1,2)} -- Using unigrams and bigrams. Captures fixed phrases such as ``partial derivative'' or ``solve for''.
-\item \texttt{sublinear\_tf=True} -- Apply sublinear term frequency scaling, which improves robustness for long statements.
-\item \texttt{norm="l2"} -- Apply L2 normalization to the resulting vectors.
-\item \texttt{stop\_words="english"} -- Remove English stop words.
+    \item \texttt{ngram\_range=(1,2)} -- Using unigrams and bigrams. Captures fixed phrases such as ``partial derivative'' or ``solve for''.
+    \item \texttt{sublinear\_tf=True} -- Apply sublinear term frequency scaling, which improves robustness for long statements.
+    \item \texttt{norm="l2"} -- Apply L2 normalization to the resulting vectors.
+    \item \texttt{stop\_words="english"} -- Remove English stop words.
 \end{itemize}
 
 We evaluated the models and preprocessing approaches (a), (b), and (c). TF-IDF works straight on raw text, therefore we don't need any further text processingtting. Since there are huge number of combinations ``settings'', we searched for the best hyperparameters separately for vectorizer and regressor by fixing one and searching for the other (we have done multiple runs with different ``starting point''). Therefore, the found best hyperparameters may not be globally optimal, but they are close to optimal in terms of performance.
@@ -222,83 +223,83 @@ We evaluated the models and preprocessing approaches (a), (b), and (c). TF-IDF w
 In results from the grid search, the optimal values for hyperparameters were always or almost always same (there weren't various combinations of vectorizer and regressor hyperparameter values). In the following, we list values we searched over together with the best found:
 
 \begin{itemize}
-\item \texttt{TfidfVectorizer.min\_df}: \{ 1, 3, 5, 10, 15 \} -- best: 3
-\item \texttt{TfidfVectorizer.max\_df}: \{ 0.1, 0.3, 0.5, 0.7, 0.9 \} -- best: 0.3
-\item \texttt{Ridge.alpha}: \{ 0.1, 1.0, 10.0 \} -- best: 1.0
-\item \texttt{SVR.C}: \{ 0.01, 0.1, 1.0, 10.0 \} -- best: 0.1
-\item \texttt{SVR.epsilon}: \{ 0.01, 0.1, 1.0 \} -- best: 0.1
+    \item \texttt{TfidfVectorizer.min\_df}: \{ 1, 3, 5, 10, 15 \} -- best: 3
+    \item \texttt{TfidfVectorizer.max\_df}: \{ 0.1, 0.3, 0.5, 0.7, 0.9 \} -- best: 0.3
+    \item \texttt{Ridge.alpha}: \{ 0.1, 1.0, 10.0 \} -- best: 1.0
+    \item \texttt{SVR.C}: \{ 0.01, 0.1, 1.0, 10.0 \} -- best: 0.1
+    \item \texttt{SVR.epsilon}: \{ 0.01, 0.1, 1.0 \} -- best: 0.1
 \end{itemize}
 
-The fine-tuned value of \texttt{min\_df} indicates that removing very rare tokens improves model performance, while the value of \texttt{max\_df} suggests that removing common tokens (appearing in more than 30\% of documents) is also beneficial. This is quite expected result, although the \texttt{max\_df} value is a bit lower than usual (the reason is probably common mathematical language).
+The value of \texttt{min\_df} indicates that removing very rare tokens improves model performance, while the value of \texttt{max\_df} suggests that removing common tokens (appearing in more than 30\% of documents) is also beneficial. This is quite expected result, although the \texttt{max\_df} value is a bit lower than usual (the reason is probably common mathematical language).
 
-For evaluation of models, we fixed hyperparameters to the found best values. In the \cref{tab:tfidf-math} and the \cref{tab:tfidf-e2h}, we can see the train and test scores with all three preprocessing approaches.
+\subsection{Results}
 
-\vspace{6pt}
+For final evaluation of models, we fixed hyperparameters to the found best values. In the \cref{tab:tfidf-math} and the \cref{tab:tfidf-e2h}, we can see the train and test scores with all three preprocessing approaches.
 
-\begin{minipage}{\linewidth}
-
-\centering
-\captionof{table}{Scores for TF-IDF + Ridge and SVR on MATH-lighteval}
-\label{tab:tfidf-math}
-\begin{tabular}{@{}|Sc|ScSc|ScSc|@{}}
-\hline
-\textbf{Model} & \multicolumn{2}{Sc|}{\textbf{Train}} & \multicolumn{2}{Sc|}{\textbf{Test}} \\
-\cline{2-5}
- & $R^2$ & RMSE & $R^2$ & RMSE \\
-\hline
-\raggedright Ridge (a) & 0.627 & 0.158 & 0.328 & 0.212 \\
-\raggedright Ridge (b) & 0.552 & 0.173 & 0.298 & 0.216 \\
-\raggedright Ridge (c) & 0.625 & 0.158 & 0.328 & 0.212 \\
-\raggedright SVR (a) & 0.512 & 0.181 & 0.326 & 0.212 \\
-\raggedright SVR (b) & 0.451 & 0.192 & 0.294 & 0.217 \\
-\raggedright SVR (c) & 0.511 & 0.181 & 0.325 & 0.212 \\
-\hline
-\end{tabular}
-\end{minipage}
-
-\vspace{12pt}
+\vspace{5pt}
 
 \begin{minipage}{\linewidth}
-
-\centering
-\captionof{table}{Scores for TF-IDF + Ridge and SVR on Easy2Hard-Bench}
-\label{tab:tfidf-e2h}
-\begin{tabular}{@{}|Sc|ScSc|ScSc|@{}}
-\hline
-\textbf{Model} & \multicolumn{2}{Sc|}{\textbf{Train}} & \multicolumn{2}{Sc|}{\textbf{Test}} \\
-\cline{2-5}
- & $R^2$ & RMSE & $R^2$ & RMSE \\
-\hline
-\raggedright Ridge (a) & 0.815 & 0.105 & 0.609 & 0.153 \\
-\raggedright Ridge (b) & 0.775 & 0.116 & 0.545 & 0.165 \\
-\raggedright Ridge (c) & 0.812 & 0.106 & 0.603 & 0.154 \\
-\raggedright SVR (a) & 0.729 & 0.127 & 0.595 & 0.156 \\
-\raggedright SVR (b) & 0.688 & 0.136 & 0.526 & 0.169 \\
-\raggedright SVR (c) & 0.725 & 0.128 & 0.592 & 0.156 \\
-\hline
-\end{tabular}
+    \centering
+    \captionof{table}{Scores for TF-IDF + Ridge and SVR on MATH-lighteval}
+    \label{tab:tfidf-math}
+    \begin{tabular}{@{}|Sc|ScSc|ScSc|@{}}
+        \hline
+        \textbf{Model} & \multicolumn{2}{Sc|}{\textbf{Train}} & \multicolumn{2}{Sc|}{\textbf{Test}} \\
+        \cline{2-5}
+        & $R^2$ & RMSE & $R^2$ & RMSE \\
+        \hline
+        \raggedright Ridge (a) & 0.627 & 0.158 & 0.328 & 0.212 \\
+        \raggedright Ridge (b) & 0.552 & 0.173 & 0.298 & 0.216 \\
+        \raggedright Ridge (c) & 0.625 & 0.158 & 0.328 & 0.212 \\
+        \raggedright SVR (a) & 0.512 & 0.181 & 0.326 & 0.212 \\
+        \raggedright SVR (b) & 0.451 & 0.192 & 0.294 & 0.217 \\
+        \raggedright SVR (c) & 0.511 & 0.181 & 0.325 & 0.212 \\
+        \hline
+    \end{tabular}
 \end{minipage}
 
-\vspace{6pt}
+\vspace{10pt}
+
+\begin{minipage}{\linewidth}
+    \centering
+    \captionof{table}{Scores for TF-IDF + Ridge and SVR on Easy2Hard-Bench}
+    \label{tab:tfidf-e2h}
+    \begin{tabular}{@{}|Sc|ScSc|ScSc|@{}}
+        \hline
+        \textbf{Model} & \multicolumn{2}{Sc|}{\textbf{Train}} & \multicolumn{2}{Sc|}{\textbf{Test}} \\
+        \cline{2-5}
+        & $R^2$ & RMSE & $R^2$ & RMSE \\
+        \hline
+        \raggedright Ridge (a) & 0.815 & 0.105 & 0.609 & 0.153 \\
+        \raggedright Ridge (b) & 0.775 & 0.116 & 0.545 & 0.165 \\
+        \raggedright Ridge (c) & 0.812 & 0.106 & 0.603 & 0.154 \\
+        \raggedright SVR (a) & 0.729 & 0.127 & 0.595 & 0.156 \\
+        \raggedright SVR (b) & 0.688 & 0.136 & 0.526 & 0.169 \\
+        \raggedright SVR (c) & 0.725 & 0.128 & 0.592 & 0.156 \\
+        \hline
+    \end{tabular}
+\end{minipage}
+
+\vspace{5pt}
 
 From the results, we can see that both Ridge and SVR perform best with preprocessing approaches (a) and (c), while approach (b) yields slightly worse results. This suggests that retaining mathematical symbols in the text provides useful information for difficulty prediction. The difference between (a) and (c) is negligible, indicating that removing certain \TeX{} symbols does not significantly impact performance.
 
 Overall, the best performing model on both datasets is TF-IDF combined with Ridge regression using preprocessing approach (a). Compared against the baseline models, especially the description length and solution length models, the TF-IDF + Ridge model has the follwoing error reductions on the test sets (we are considering only RMSE scores here):
 
 \begin{itemize}
+    \item \textbf{Description Length Baseline vs. TF-IDF + Ridge}
+    \begin{itemize}
+        \item MATH-lighteval: 0.313 $\to$ 0.212 -- $\approx 32.27\%$ error reduction
+        \item Easy2Hard-Bench: 0.246 $\to$ 0.153 -- $\approx 37.8\%$ error reduction
+    \end{itemize}
 
-\item \textbf{Description Length Baseline vs. TF-IDF + Ridge}
-\begin{itemize}
-\item MATH-lighteval: 0.313 $\to$ 0.212 -- $\approx 32.27\%$ error reduction
-\item Easy2Hard-Bench: 0.246 $\to$ 0.153 -- $\approx 37.8\%$ error reduction
-\end{itemize}
+\vspace{10pt}
 
-\item \textbf{Solution Length Baseline vs. TF-IDF + Ridge}
-\begin{itemize}
-\item MATH-lighteval: 0.287 $\to$ 0.212 -- $\approx 26.13\%$ error reduction
-\item Easy2Hard-Bench: 0.229 $\to$ 0.153 -- $\approx 33.19\%$ error reduction
-\end{itemize}
-
+    \item \textbf{Solution Length Baseline vs. TF-IDF + Ridge}
+    \begin{itemize}
+        \item MATH-lighteval: 0.287 $\to$ 0.212 -- $\approx 26.13\%$ error reduction
+        \item Easy2Hard-Bench: 0.229 $\to$ 0.153 -- $\approx 33.19\%$ error reduction
+    \end{itemize}
 \end{itemize}
 
 
@@ -307,199 +308,557 @@ Overall, the best performing model on both datasets is TF-IDF combined with Ridg
 
 Another approach we experimented with is using linguistic features extracted from the solution description, combined with a tree-based regression model. This choice comes from the fact that linguistic feature vector is low-dimensional and dense, making it suitable for such models.
 
-We used textstat library for linguistic features extraction together with some own implemented features. The final feature set includes:
+\subsection{Linguistic Features Set}
+
+We used Textstat library \cite{textstat} for linguistic features extraction together with some own implemented features. The final feature set includes:
 
 \begin{itemize}
-\item \textbf{sentence count}
-\item \textbf{lexicon (words) count}
-\item \textbf{syllable count}
-\item \textbf{Flesch reading ease}
-\item \textbf{Flesch-Kincaid grade level}
-\item \textbf{Dale-Chall readability score}
-\item \textbf{difficult words count} -- textstat's \texttt{difficult\_words} function, estimates the number of challenging or complex words
-\item \textbf{math expression count} -- detected via \TeX{} math environments
-\item \textbf{numbers count} -- number of ``numerical words'' in the text
-\item \textbf{operators count} -- number of mathematical operators (e.g., +, -, /, ...)
-\item \textbf{variables count} -- number of isolated letters inside math expressions
+    \item \textbf{sentence count}
+    \item \textbf{lexicon (words) count}
+    \item \textbf{syllable count}
+    \item \textbf{Flesch reading ease}
+    \item \textbf{Flesch-Kincaid grade level}
+    \item \textbf{Dale-Chall readability score}
+    \item \textbf{difficult words count} -- Textstat's \texttt{difficult\_words} function, estimates the number of challenging or complex words
+    \item \textbf{math expression count} -- detected via \TeX{} math environments
+    \item \textbf{numbers count} -- number of ``numerical words'' in the text
+    \item \textbf{operators count} -- number of mathematical operators (e.g., +, -, /, ...)
+    \item \textbf{variables count} -- number of isolated letters inside math expressions
 \end{itemize}
 
 Since feature extraction makes up the whole prepocessing step, we don't need to consider approaches from the \cref{sec:preprocessing} here. However, we used description without \TeX{} (approach (b)) for almost all feature extraction functions, except for math expression count, numbers count, operators count, and variables count, which require \TeX{} math environments to be present.
 
-As with TF-IDF model, we compare two different regression models -- \textit{Random Forest Regressor} and \textit{Gradient Boosting Regressor}. Since these models have several hyperparameters, we performed corss-validated grid search (5-fold, negative mean squared error). We use \texttt{RandomForestRegressor}, \texttt{GradientBoostingRegressor}, and once again \texttt{GridSearchCV} from Scikit-learn library.
+\subsection{Regression Models and Hyperparameter Optimization}
+
+As with TF-IDF model, we compare two different regression models -- \textit{Random Forest Regressor} and \textit{Gradient Boosting Regressor}. Since these models have several hyperparameters, we performed corss-validated grid search (5-fold, negative mean squared error). We use \texttt{RandomForestRegressor}, \texttt{GradientBoostingRegressor}, and once again \texttt{GridSearchCV} from Scikit-learn library \cite{scikit-learn}.
 
 We list the hyperparameters values we searched over below, as well as ones we fixed:
 
 \begin{itemize}
+    \item \texttt{RandomForestRegressor}
+    \begin{itemize}
+        \item fixed: \texttt{bootstrap=True}
+        \item searched:
+        \begin{itemize}
+            \item \texttt{n\_estimators}: \{ 300, 500, 700 \}
+            \item \texttt{max\_depth}: \{ 5, 10, 20 \}
+            \item \texttt{min\_samples\_split}: \{ 10, 20, 50 \}
+            \item \texttt{min\_samples\_leaf}: \{ 3, 5, 10 \}
+            \item \texttt{max\_features}: \{ 0.6, 0.8, 1.0 \}
+        \end{itemize}
+    \end{itemize}
 
-\item \texttt{RandomForestRegressor}
-\begin{itemize}
-\item fixed: \texttt{bootstrap=True}
-\item fine-tuned:
-\begin{itemize}
-\item \texttt{n\_estimators}: \{ 300, 500, 700 \}
-\item \texttt{max\_depth}: \{ 5, 10, 20 \}
-\item \texttt{min\_samples\_split}: \{ 10, 20, 50 \}
-\item \texttt{min\_samples\_leaf}: \{ 3, 5, 10 \}
-\item \texttt{max\_features}: \{ 0.6, 0.8, 1.0 \}
-\end{itemize}
-\end{itemize}
+\vspace{10pt}
 
-\vspace{6pt}
-
-\item \texttt{GradientBoostingRegressor}
-\begin{itemize}
-\item fixed: \texttt{loss="squared\_error"}, \texttt{max\_features=None}
-\item fine-tuned:
-\begin{itemize}
-\item \texttt{n\_estimators}: \{ 300, 500, 700 \}
-\item \texttt{learning\_rate}: \{ 0.01, 0.1, 0.5 \}
-\item \texttt{max\_depth}: \{ 5, 10, 20 \}
-\item \texttt{min\_samples\_split}: \{ 10, 20, 50 \}
-\item \texttt{min\_samples\_leaf}: \{ 3, 5, 10 \}
-\item \texttt{subsample}: \{ 0.6, 0.8, 1.0 \}
-\end{itemize}
-\end{itemize}
-
+    \item \texttt{GradientBoostingRegressor}
+    \begin{itemize}
+        \item fixed: \texttt{loss="squared\_error"}, \texttt{max\_features=None}
+        \item searched:
+        \begin{itemize}
+            \item \texttt{n\_estimators}: \{ 300, 500, 700 \}
+            \item \texttt{learning\_rate}: \{ 0.01, 0.1, 0.5 \}
+            \item \texttt{max\_depth}: \{ 5, 10, 20 \}
+            \item \texttt{min\_samples\_split}: \{ 10, 20, 50 \}
+            \item \texttt{min\_samples\_leaf}: \{ 3, 5, 10 \}
+            \item \texttt{subsample}: \{ 0.6, 0.8, 1.0 \}
+        \end{itemize}
+    \end{itemize}
 \end{itemize}
 
-Unlike with TF-IDF model, the found values varied between datasets (partially because of different datasets sizes). Their are shown in the \cref{tab:rf-hyperparams} and in the \cref{tab:gbr-hyperparams}. The evaluated scores with the best hyperparameters are shown in the \cref{tab:rf-math} and in the \cref{tab:gb-e2h}.
+Unlike with TF-IDF model, the found values varied between datasets (partially because of different datasets sizes). Their are shown in the \cref{tab:rf-hyperparams} and in the \cref{tab:gbr-hyperparams}.
 
-\vspace{6pt}
+\vspace{5pt}
 
 \begin{minipage}{\linewidth}
-\centering
-\captionof{table}{\texttt{RandomForestRegressor} hyperparameters for each dataset}
-\label{tab:rf-hyperparams}
-\begin{tabular}{@{}|Sc|Sc|Sc|@{}}
-\hline
-\textbf{Hyperparameter} & \textbf{MATH-lighteval} & \textbf{Easy2Hard-Bench} \\
-\hline
-n\_estimators & 300 & 500 \\
-max\_depth & 20 & 10 \\
-min\_samples\_split & 10 & 10 \\
-min\_samples\_leaf & 3 & 3 \\
-max\_features & 0.6 & 0.8 \\
-\hline
-\end{tabular}
+    \centering
+    \captionof{table}{\texttt{RandomForestRegressor} hyperparameters for each dataset}
+    \label{tab:rf-hyperparams}
+    \begin{tabular}{@{}|Sc|Sc|Sc|@{}}
+        \hline
+        \textbf{Hyperparameter} & \textbf{MATH-lighteval} & \textbf{Easy2Hard-Bench} \\
+        \hline
+        n\_estimators & 300 & 500 \\
+        max\_depth & 20 & 10 \\
+        min\_samples\_split & 10 & 10 \\
+        min\_samples\_leaf & 3 & 3 \\
+        max\_features & 0.6 & 0.8 \\
+        \hline
+    \end{tabular}
 \end{minipage}
 
-\vspace{12pt}
+\vspace{10pt}
 
 \begin{minipage}{\linewidth}
-\centering
-\captionof{table}{\texttt{GradientBoostingRegressor} hyperparameters for each dataset}
-\label{tab:gbr-hyperparams}
-\begin{tabular}{@{}|Sc|Sc|Sc|@{}}
-\hline
-\textbf{Hyperparameter} & \textbf{MATH-lighteval} & \textbf{Easy2Hard-Bench} \\
-\hline
-n\_estimators & 300 & 700 \\
-learning\_rate & 0.01 & 0.01 \\
-max\_depth & 10 & 5 \\
-min\_samples\_split & 20 & 50 \\
-min\_samples\_leaf & 3 & 10 \\
-subsample & 0.6 & 0.8 \\
-\hline
-\end{tabular}
+    \centering
+    \captionof{table}{\texttt{GradientBoostingRegressor} hyperparameters for each dataset}
+    \label{tab:gbr-hyperparams}
+    \begin{tabular}{@{}|Sc|Sc|Sc|@{}}
+        \hline
+        \textbf{Hyperparameter} & \textbf{MATH-lighteval} & \textbf{Easy2Hard-Bench} \\
+        \hline
+        n\_estimators & 300 & 700 \\
+        learning\_rate & 0.01 & 0.01 \\
+        max\_depth & 10 & 5 \\
+        min\_samples\_split & 20 & 50 \\
+        min\_samples\_leaf & 3 & 10 \\
+        subsample & 0.6 & 0.8 \\
+        \hline
+    \end{tabular}
 \end{minipage}
 
-\vspace{12pt}
+\vspace{5pt}
+
+\subsection{Results}
+
+The evaluated scores of models with the found best hyperparameters are shown in the \cref{tab:ling-math} and in the \cref{tab:ling-e2h}.
+
+\vspace{5pt}
 
 \begin{minipage}{\linewidth}
-
-\centering
-\captionof{table}{Scores for LingFeature + RandomForestRegressor and GradientBoostingRegressor on MATH-lighteval}
-\label{tab:rf-math}
-\begin{tabular}{@{}|Sc|ScSc|ScSc|@{}}
-\hline
-\textbf{Model} & \multicolumn{2}{Sc|}{\textbf{Train}} & \multicolumn{2}{Sc|}{\textbf{Test}} \\
-\cline{2-5}
- & $R^2$ & RMSE & $R^2$ & RMSE \\
-\hline
-\raggedright Random Forest & 0.654 & 0.152 & 0.295 & 0.217 \\
-\raggedright Gradient Boosting & 0.547 & 0.174 & 0.297 & 0.217 \\
-\hline
-\end{tabular}
+    \centering
+    \captionof{table}{Scores for Ling. Feature + Random Forest and Gradient Boosting on MATH-lighteval}
+    \label{tab:ling-math}
+    \begin{tabular}{@{}|Sc|ScSc|ScSc|@{}}
+        \hline
+        \textbf{Model} & \multicolumn{2}{Sc|}{\textbf{Train}} & \multicolumn{2}{Sc|}{\textbf{Test}} \\
+        \cline{2-5}
+        & $R^2$ & RMSE & $R^2$ & RMSE \\
+        \hline
+        \raggedright Random Forest & 0.654 & 0.152 & 0.295 & 0.217 \\
+        \raggedright Gradient Boosting & 0.547 & 0.174 & 0.297 & 0.217 \\
+        \hline
+    \end{tabular}
 \end{minipage}
 
-\vspace{12pt}
+\vspace{10pt}
 
 \begin{minipage}{\linewidth}
-
-\centering
-\captionof{table}{Scores for LingFeature + RandomForestRegressor and GradientBoostingRegressor on Easy2Hard-Bench}
-\label{tab:gb-e2h}
-\begin{tabular}{@{}|Sc|ScSc|ScSc|@{}}
-\hline
-\textbf{Model} & \multicolumn{2}{Sc|}{\textbf{Train}} & \multicolumn{2}{Sc|}{\textbf{Test}} \\
-\cline{2-5}
- & $R^2$ & RMSE & $R^2$ & RMSE \\
-\hline
-\raggedright Random Forest & 0.67 & 0.14 & 0.444 & 0.183 \\
-\raggedright Gradient Boosting & 0.606 & 0.153 & 0.457 & 0.18 \\
-\hline
-\end{tabular}
+    \centering
+    \captionof{table}{Scores for Ling. Feature + Random Forest and Gradient Boosting on Easy2Hard-Bench}
+    \label{tab:ling-e2h}
+    \begin{tabular}{@{}|Sc|ScSc|ScSc|@{}}
+        \hline
+        \textbf{Model} & \multicolumn{2}{Sc|}{\textbf{Train}} & \multicolumn{2}{Sc|}{\textbf{Test}} \\
+        \cline{2-5}
+        & $R^2$ & RMSE & $R^2$ & RMSE \\
+        \hline
+        \raggedright Random Forest & 0.670 & 0.140 & 0.444 & 0.183 \\
+        \raggedright Gradient Boosting & 0.606 & 0.153 & 0.457 & 0.180 \\
+        \hline
+    \end{tabular}
 \end{minipage}
 
-\vspace{6pt}
+\vspace{5pt}
 
 Both models achieve very similar performance on both datasets. Maybe Random Forest is slightly overfitting, which we can see from the train vs. test scores. Therefore we take the Gradient Boosting model as the representative one. Compared against the baseline models (description length and solution length), the error reductions on the test sets are as follows:
 
 \begin{itemize}
+    \item \textbf{Description Length Baseline vs. LingFeature + Gradient Boosting}
+    \begin{itemize}
+        \item MATH-lighteval: 0.313 $\to$ 0.217 -- $\approx 30.67\%$ error reduction
+        \item Easy2Hard-Bench: 0.246 $\to$ 0.18 -- $\approx 26.83\%$ error reduction
+    \end{itemize}
 
-\item \textbf{Description Length Baseline vs. TF-IDF + Ridge}
-\begin{itemize}
-\item MATH-lighteval: 0.313 $\to$ 0.217 -- $\approx 30.67\%$ error reduction
-\item Easy2Hard-Bench: 0.246 $\to$ 0.18 -- $\approx 26.83\%$ error reduction
-\end{itemize}
+\vspace{10pt}
 
-\item \textbf{Solution Length Baseline vs. TF-IDF + Ridge}
-\begin{itemize}
-\item MATH-lighteval: 0.287 $\to$ 0.217 -- $\approx 24.39\%$ error reduction
-\item Easy2Hard-Bench: 0.229 $\to$ 0.18 -- $\approx 21.4\%$ error reduction
-\end{itemize}
-
+    \item \textbf{Solution Length Baseline vs. LingFeature + Gradient Boosting}
+    \begin{itemize}
+        \item MATH-lighteval: 0.287 $\to$ 0.217 -- $\approx 24.39\%$ error reduction
+        \item Easy2Hard-Bench: 0.229 $\to$ 0.18 -- $\approx 21.4\%$ error reduction
+    \end{itemize}
 \end{itemize}
 
 This model performs worse than the TF-IDF + Ridge model from the previous section. Of course, the choice of linguistic features is very important here -- different or additional features could improve the performance.
 
+\subsection{Feature Importances}
+
 This approach gives still give us some useful information, since the features are interpretable. We can retrieve feature importances from the trained models (Scikit-learn implementations provide this functionality out-of-the-box). In the \cref{tab:importances}, we list feature importances for all four trained models and their average importance. In the table, we denote
 
 \begin{itemize}
-\item $M_{RF}$ -- Random Forest on MATH-lighteval
-\item $M_{GB}$ -- Gradient Boosting on MATH-lighteval
-\item $E_{RF}$ -- Random Forest on Easy2Hard-Bench
-\item $E_{GB}$ -- Gradient Boosting on Easy2Hard-Bench
+    \item $M_{RF}$ -- Random Forest on MATH-lighteval
+    \item $M_{GB}$ -- Gradient Boosting on MATH-lighteval
+    \item $E_{RF}$ -- Random Forest on Easy2Hard-Bench
+    \item $E_{GB}$ -- Gradient Boosting on Easy2Hard-Bench
 \end{itemize}
 
-\vspace{6pt}
+\vspace{5pt}
 
 \begin{minipage}{\linewidth}
-\centering
-\captionof{table}{}
-\label{tab:importances}
-\begin{tabular}{@{}|Sc|Sc|Sc|Sc|Sc|Sc|@{}}
-\hline
-\textbf{Feature} & \textbf{$M_{RF}$} & \textbf{$M_{GB}$} & \textbf{$E_{RF}$} & \textbf{$E_{GB}$} & \textbf{Average} \\
-\hline
-sentence c. & 0.0134 & 0.0117 & 0.0140 & 0.0137 & 0.0132 \\
-lexicon c. & 0.0904 & 0.0674 & 0.0468 & 0.0396 & 0.0611 \\
-syllable c. & 0.1494 & 0.1507 & 0.0591 & 0.0629 & 0.1055 \\
-FRE & 0.0909 & 0.0949 & 0.0531 & 0.0451 & 0.0710 \\
-FKGL & 0.0980 & 0.1016 & 0.0995 & 0.0983 & 0.0994 \\
-Dale-Chall & 0.1248 & 0.1395 & 0.1227 & 0.1305 & 0.1294 \\
-difficult w. c. & 0.1014 & 0.1009 & 0.0375 & 0.0289 & 0.0672 \\
-math expr. c. & 0.0809 & 0.0826 & 0.0725 & 0.0768 & 0.0782 \\
-numbers c. & 0.0640 & 0.0633 & 0.0609 & 0.0552 & 0.0608 \\
-operators c. & 0.0947 & 0.0990 & 0.0751 & 0.0353 & 0.0760 \\
-variables c. & 0.0922 & 0.0884 & 0.3587 & 0.4134 & 0.2382 \\
-\hline
-\end{tabular}
+    \centering
+    \captionof{table}{Feature importances for tree-based models $M_{RF}$, $M_{GB}$, $E_{RF}$, and $E_{GB}$}
+    \label{tab:importances}
+    \begin{tabular}{@{}|Sc|Sc|Sc|Sc|Sc|Sc|@{}}
+        \hline
+        \textbf{Feature} & \textbf{$M_{RF}$} & \textbf{$M_{GB}$} & \textbf{$E_{RF}$} & \textbf{$E_{GB}$} & \textbf{Average} \\
+        \hline
+        sentence c. & 0.0134 & 0.0117 & 0.0140 & 0.0137 & 0.0132 \\
+        lexicon c. & 0.0904 & 0.0674 & 0.0468 & 0.0396 & 0.0611 \\
+        syllable c. & 0.1494 & 0.1507 & 0.0591 & 0.0629 & 0.1055 \\
+        FRE & 0.0909 & 0.0949 & 0.0531 & 0.0451 & 0.0710 \\
+        FKGL & 0.0980 & 0.1016 & 0.0995 & 0.0983 & 0.0994 \\
+        Dale-Chall & 0.1248 & 0.1395 & 0.1227 & 0.1305 & 0.1294 \\
+        difficult w. c. & 0.1014 & 0.1009 & 0.0375 & 0.0289 & 0.0672 \\
+        math expr. c. & 0.0809 & 0.0826 & 0.0725 & 0.0768 & 0.0782 \\
+        numbers c. & 0.0640 & 0.0633 & 0.0609 & 0.0552 & 0.0608 \\
+        operators c. & 0.0947 & 0.0990 & 0.0751 & 0.0353 & 0.0760 \\
+        variables c. & 0.0922 & 0.0884 & 0.3587 & 0.4134 & 0.2382 \\
+        \hline
+    \end{tabular}
 \end{minipage}
 
-\vspace{6pt}
+\vspace{5pt}
 
 From the table, we can see that the most important features (on average) are variables count, Dale-Chall readability score and syllable count (which is highly correlated with text length). On the other hand, sentence count are by far the least important feature. We can also observe differences between datasets -- for example, variables count is much more important for Easy2Hard-Bench dataset than for MATH-lighteval.
+
+
+\section{Transformer Model}
+\label{sec:bert}
+
+For our final approach, we implemented a transformer-based regression model using the HuggingFace Transformers library \cite{transformers} together with PyTorch \cite{pytorch}. We used pre-trained language models and fine-tuned them for our regression task. We chose two different models:
+
+\begin{itemize}
+    \item \textbf{BERT-base} \cite{bertbase} -- General-purpose language model pre-trained on large number of English texts.
+    \item \textbf{MathBERT} \cite{mathbert} -- Domain-specific variant of BERT pre-trained on mathematical texts (which is more suitable for our task).
+\end{itemize}
+
+The architecture consists of a transformer encoder (either BERT-base or MathBERT) with a regression head. The implementation uses the following components:
+
+\begin{enumerate}
+    \item \textbf{tokenizer} -- Converts input text into token IDs using the pre-trained tokenizer corresponding to the selected model.
+    \item \textbf{transformer encoder} -- BERT-base or MathBERT, both with a regression head (single output neuron).
+    \item \textbf{regression head} -- The final layer outputs a real value, interpreted as the predicted difficulty.
+    \item \textbf{bounding function} -- At evaluation, predictions are clipped to $[0,1]$.
+\end{enumerate}
+
+For the implementation, we used the API from the Transformers library \cite{transformers}, especially these classes:
+
+\begin{itemize}
+    \item \texttt{AutoTokenizer} -- tokenization (parameters described later)
+    \item \texttt{AutoModelForSequenceClassification} -- loading pre-trained models with regression head (\texttt{num\_labels=1}, \texttt{problem\_type="regression"})
+    \item \texttt{TrainingArguments} -- specifying training hyperparameters (parameters described later)
+    \item \texttt{Trainer} -- training and evaluation (takes model, training arguments, datasets, and tokenizer as input)
+\end{itemize}
+
+Because of long training times, we didn't perform grid search with cross-validation here. Instead, we split the training data further into training and validation sets and monitored validation loss during training to prevent overfitting -- we validated after end of each epoch, then loaded the model with the best validation loss. We also did two whole training iterations in order to set hyperparameter values at least somewhat optimally.
+
+\subsection{First Attempt}
+
+In the first attempt, we chose a $90:10$ train-validation split. The dataset sizes for this attempt were:
+
+\begin{itemize}
+    \item \textbf{MATH-lighteval}
+    \begin{itemize}
+        \item training: 8{,}998
+        \item validation: 1{,}000
+    \end{itemize}
+
+\vspace{10pt}
+
+    \item \textbf{Easy2Hard-Bench}
+    \begin{itemize}
+        \item training: 2{,}862
+        \item validation: 318
+    \end{itemize}
+\end{itemize}
+
+Then we chose hyperparameter values based on common recommendations for fine-tuning BERT models. We list hyperparameter values, which both models shared during training.
+
+\begin{itemize}
+    \item \texttt{AutoTokenizer}
+    \begin{itemize}
+        \item \texttt{max\_length=256} -- maximum number of tokens per input sequence
+        \item \texttt{padding=True} -- pads short sequences
+        \item \texttt{truncation=True} -- truncates long sequences
+        \item \texttt{return\_tensors="pt"} -- returns PyTorch tensors
+    \end{itemize}
+
+\vspace{10pt}
+
+    \item \texttt{TrainingArguments}
+    \begin{itemize}
+        \item \texttt{num\_train\_epochs=4}
+        \item \texttt{per\_device\_train\_batch\_size=16}
+        \item \texttt{learning\_rate=2e-5} -- recommended for fine-tuning BERT
+        \item \texttt{weight\_decay=0.01} -- regularization (prevents overfitting)
+    \end{itemize}
+\end{itemize}
+
+The results of the first iteration are shown in the \cref{tab:bert1-math} and in the \cref{tab:bert1-e2h}.
+
+\vspace{5pt}
+
+\begin{minipage}{\linewidth}
+    \centering
+    \captionof{table}{Scores for Transformer models (BERT-base and MathBERT) on MATH-lighteval, first attempt}
+    \label{tab:bert1-math}
+    \begin{tabular}{@{}|Sc|ScSc|ScSc|@{}}
+        \hline
+        \textbf{Model} & \multicolumn{2}{Sc|}{\textbf{Train}} & \multicolumn{2}{Sc|}{\textbf{Test}} \\
+        \cline{2-5}
+        & $R^2$ & RMSE & $R^2$ & RMSE \\
+        \hline
+        \raggedright BERT-base & 0.670 & 0.148 & 0.404 & 0.199 \\
+        \raggedright MathBERT & 0.711 & 0.139 & 0.383 & 0.203 \\
+        \hline
+    \end{tabular}
+\end{minipage}
+
+\vspace{10pt}
+
+\begin{minipage}{\linewidth}
+    \centering
+    \captionof{table}{Scores for Transformer models (BERT-base and MathBERT) on Easy2Hard-Bench, first attempt}
+    \label{tab:bert1-e2h}
+    \begin{tabular}{@{}|Sc|ScSc|ScSc|@{}}
+        \hline
+        \textbf{Model} & \multicolumn{2}{Sc|}{\textbf{Train}} & \multicolumn{2}{Sc|}{\textbf{Test}} \\
+        \cline{2-5}
+        & $R^2$ & RMSE & $R^2$ & RMSE \\
+        \hline
+        \raggedright BERT-base & 0.877 & 0.086 & 0.738 & 0.125 \\
+        \raggedright MathBERT & 0.884 & 0.083 & 0.701 & 0.134 \\
+        \hline
+    \end{tabular}
+\end{minipage}
+
+\vspace{5pt}
+
+As we can see, both models show a classic sign of overfitting -- the training scores are significantly better than the testing scores -- especially for the MathBERT model. It's also interesting to note that the MathBERT model performed worse than the BERT-base model on the test sets (which was unexpected). This could be due to smaller dataset sizes as well as suboptimal hyperparameter choices. We tried to mitigate overfitting in the second attempt.
+
+\subsection{Second Attempt}
+
+First, we increased the size of the validation set to $20\%$ of the original training data. The new dataset sizes were:
+
+\begin{itemize}
+    \item \textbf{MATH-lighteval}
+    \begin{itemize}
+        \item training: 7{,}998
+        \item validation: 2{,}000
+    \end{itemize}
+
+\vspace{10pt}
+
+    \item \textbf{Easy2Hard-Bench}
+    \begin{itemize}
+        \item training: 2{,}544
+        \item validation: 636
+    \end{itemize}
+\end{itemize}
+
+Then we adjusted these parameters of \texttt{TrainingArguments}:
+
+\begin{itemize}
+    \item \texttt{learning\_rate=1e-5} -- lowered learning rate for more stable training
+    \item \texttt{weight\_decay=0.1} -- increased regularization (forcing model to generalize better)
+\end{itemize}
+
+We also increased dropout rate in hidden and attention layers from default $0.1$ to $0.2$, which can also help reduce overfitting. The results of the second iteration are shown in the \cref{tab:bert2-math} and in the \cref{tab:bert2-e2h}.
+
+\vspace{5pt}
+
+\begin{minipage}{\linewidth}
+    \centering
+    \captionof{table}{Scores for Transformer models (BERT-base and MathBERT) on MATH-lighteval, second attempt}
+    \label{tab:bert2-math}
+    \begin{tabular}{@{}|Sc|ScSc|ScSc|@{}}
+        \hline
+        \textbf{Model} & \multicolumn{2}{Sc|}{\textbf{Train}} & \multicolumn{2}{Sc|}{\textbf{Test}} \\
+        \cline{2-5}
+        & $R^2$ & RMSE & $R^2$ & RMSE \\
+        \hline
+        \raggedright BERT-base & 0.416 & 0.198 & 0.352 & 0.208 \\
+        \raggedright MathBERT & 0.44 & 0.193 & 0.351 & 0.208 \\
+        \hline
+    \end{tabular}
+\end{minipage}
+
+\vspace{10pt}
+
+\begin{minipage}{\linewidth}
+    \centering
+    \captionof{table}{Scores for Transformer models (BERT-base and MathBERT) on Easy2Hard-Bench, second attempt}
+    \label{tab:bert2-e2h}
+    \begin{tabular}{@{}|Sc|ScSc|ScSc|@{}}
+        \hline
+        \textbf{Model} & \multicolumn{2}{Sc|}{\textbf{Train}} & \multicolumn{2}{Sc|}{\textbf{Test}} \\
+        \cline{2-5}
+        & $R^2$ & RMSE & $R^2$ & RMSE \\
+        \hline
+        \raggedright BERT-base & 0.735 & 0.126 & 0.698 & 0.135 \\
+        \raggedright MathBERT & 0.672 & 0.14 & 0.613 & 0.152 \\
+        \hline
+    \end{tabular}
+\end{minipage}
+
+\vspace{5pt}
+
+We can see that the overfitting issue has been mitigated -- the difference between training and testing scores is much smaller now. However, the overall performance has decreased compared to the first attempt. This is likely due to reduced training data size and lower learning rate with not enough epochs. We could fix this in another attempt, but we left it as is due to time constraints.
+
+While on MATH-lighteval dataset both models perform similarly, on Easy2Hard-Bench dataset the BERT-base model still outperforms the MathBERT model. This could be due to the fact that MathBERT was pre-trained on different types of mathematical texts than those present in our datasets, leading to suboptimal performance.
+
+\subsection{Results}
+
+Compared to previous models, both transformer models performed better, although not by a large margin. In the following, we report the error reduction on the test set against baseline models and the best TF-IDF + Ridge model from \cref{sec:tfidf}. We will consider BERT-base from the first attempt as the representative one even though it might be overfitted, since it has the best test scores.
+
+\begin{itemize}
+    \item \textbf{Description Length Baseline vs. BERT-base (1nd attempt)}
+    \begin{itemize}
+        \item MATH-lighteval: 0.313 $\to$ 0.199 -- $\approx 36.42\%$ error reduction
+        \item Easy2Hard-Bench: 0.246 $\to$ 0.125 -- $\approx 49.19\%$ error reduction
+    \end{itemize}
+
+\vspace{10pt}
+
+    \item \textbf{Solution Length Baseline vs. BERT-base (1nd attempt)}
+    \begin{itemize}
+        \item MATH-lighteval: 0.287 $\to$ 0.199 -- $\approx 30.66\%$ error reduction
+        \item Easy2Hard-Bench: 0.229 $\to$ 0.125 -- $\approx 45.41\%$ error reduction
+    \end{itemize}
+
+\vspace{10pt}
+
+    \item \textbf{TF-IDF + Ridge vs. BERT-base (1nd attempt)}
+    \begin{itemize}
+        \item MATH-lighteval: 0.212 $\to$ 0.199 -- $\approx 6.13\%$ error reduction
+        \item Easy2Hard-Bench: 0.153 $\to$ 0.125 -- $\approx 18.3\%$ error reduction
+    \end{itemize}
+
+\end{itemize}
+
+\section{Combining Datasets}
+\label{sec:combine}
+
+While datasets MATH-lighteval and Easy2Hard-Bench are similar in nature, they differ in difficulty distribution, problem descriptions, and other characteristics. However, the normalized diffuculty representation allows us to combine datasets into a larger training set. When split with the same $80:20$ train-test ratio, the combined dataset has the following sizes:
+
+\begin{itemize}
+    \item \textbf{Combined (MATH-lighteval + Easy2Hard-Bench)}
+    \begin{itemize}
+        \item training: 13{,}178
+        \item testing: 3{,}295
+    \end{itemize}
+\end{itemize}
+
+In this section, we present results of training models from previous sections on the combined dataset. We don't repeat the Transformer models here, since their training times are too long.
+
+\subsection{Baseline Models}
+
+The baseline models were re-evaluated on the combined dataset. The results are shown in the \cref{tab:baseline-combined}.
+
+\vspace{5pt}
+
+\begin{minipage}{\linewidth}
+    \centering
+    \captionof{table}{Baseline model performance on Combined Dataset}
+    \label{tab:baseline-combined}
+    \begin{tabular}{@{}|Sc|ScSc|ScSc|@{}}
+        \hline
+        \textbf{Model} & \multicolumn{2}{Sc|}{\textbf{Train}} & \multicolumn{2}{Sc|}{\textbf{Test}} \\
+        \cline{2-5}
+        & $R^2$ & RMSE & $R^2$ & RMSE \\
+        \hline
+        \raggedright Random & -1.286 & 0.398 & -1.348 & 0.406 \\
+        \raggedright Average & 0.000 & 0.264 & 0.000 & 0.265 \\
+        \raggedright Description Length & 0.011 & 0.262 & 0.018 & 0.263 \\
+        \raggedright Solution Length & 0.109 & 0.249 & 0.114 & 0.250 \\
+        \hline
+    \end{tabular}
+\end{minipage}
+
+\vspace{5pt}
+
+\subsection{TF-IDF Models}
+
+For TF-IDF models, we used the same hyperparameter values as found in the \cref{sec:tfidf}, since they were same for both datasets. We evaluated both Ridge and SVR models with all three preprocessing approaches. The results are shown in the \cref{tab:tfidf-combined}.
+
+\vspace{5pt}
+
+\begin{minipage}{\linewidth}
+    \centering
+    \captionof{table}{Scores for TF-IDF + Ridge and SVR on combined dataset}
+    \label{tab:tfidf-combined}
+    \begin{tabular}{@{}|Sc|ScSc|ScSc|@{}}
+        \hline
+        \textbf{Model} & \multicolumn{2}{Sc|}{\textbf{Train}} & \multicolumn{2}{Sc|}{\textbf{Test}} \\
+        \cline{2-5}
+        & $R^2$ & RMSE & $R^2$ & RMSE \\
+        \hline
+        \raggedright Ridge (a) & 0.594 & 0.168 & 0.223 & 0.234 \\
+        \raggedright Ridge (b) & 0.521 & 0.182 & 0.187 & 0.239 \\
+        \raggedright Ridge (c) & 0.592 & 0.168 & 0.228 & 0.233 \\
+        \raggedright SVR (a) & 0.470 & 0.192 & 0.229 & 0.233 \\
+        \raggedright SVR (b) & 0.413 & 0.202 & 0.192 & 0.238 \\
+        \raggedright SVR (c) & 0.469 & 0.192 & 0.234 & 0.232 \\
+        \hline
+    \end{tabular}
+\end{minipage}
+
+\vspace{5pt}
+
+We can see that the performance of TF-IDF models on the combined dataset is worse than on individual datasets (see \cref{tab:tfidf-math} and \cref{tab:tfidf-e2h}). This is probably caused by increased variance in the combined data as well as different difficulty assessments. The best performing model is again TF-IDF + Ridge, but with preprocessing approach (c) (removing only \TeX{} symbols), although the difference is tiny. For direct comparison, the error reductions against baseline models are as follows:
+
+\begin{itemize}
+    \item \textbf{Description Length Baseline vs. TF-IDF + Ridge}
+    \begin{itemize}
+        \item Combined: 0.263 $\to$ 0.233 -- $\approx 11.41\%$ error reduction
+        \item (MATH-lighteval: $\approx 32.27\%$; Easy2Hard-Bench: $\approx 37.8\%$)
+    \end{itemize}
+
+\vspace{10pt}
+
+    \item \textbf{Solution Length Baseline vs. TF-IDF + Ridge}
+    \begin{itemize}
+        \item Combined: 0.250 $\to$ 0.233 -- $\approx 6.8\%$ error reduction
+        \item (MATH-lighteval: $\approx 26.13\%$; Easy2Hard-Bench: $\approx 33.19\%$)
+    \end{itemize}
+\end{itemize}
+
+\subsection{Linguistic Features Models}
+
+For linguistic features models, we had different hyperparameter values for individual datasets (see \cref{tab:rf-hyperparams} and \cref{tab:gbr-hyperparams}). Without running another grid search, we chose the values from MATH-lighteval because of its larger size (makes up $\approx 75\%$ of the combined dataset). The results are shown in the \cref{tab:ling-combined}.
+
+\vspace{5pt}
+
+\begin{minipage}{\linewidth}
+    \centering
+    \captionof{table}{Scores for Ling. Feature + Random Forest and Gradient Boosting on combined dataset}
+    \label{tab:ling-combined}
+    \begin{tabular}{@{}|Sc|ScSc|ScSc|@{}}
+        \hline
+        \textbf{Model} & \multicolumn{2}{Sc|}{\textbf{Train}} & \multicolumn{2}{Sc|}{\textbf{Test}} \\
+        \cline{2-5}
+        & $R^2$ & RMSE & $R^2$ & RMSE \\
+        \hline
+        \raggedright Random Forest & 0.604 & 0.166 & 0.177 & 0.241 \\
+        \raggedright Gradient Boosting & 0.446 & 0.196 & 0.183 & 0.240 \\
+        \hline
+    \end{tabular}
+\end{minipage}
+
+\vspace{5pt}
+
+Similarly to TF-IDF models, linguistic features models also perform worse on the combined dataset (for the same reasons). The Gradient Boosting model is slightly better on the test set, so we take it as the representative one. The error reductions against baseline models are as follows:
+
+\begin{itemize}
+    \item \textbf{Description Length Baseline vs. LingFeature + Gradient Boosting}
+    \begin{itemize}
+        \item Combined: 0.263 $\to$ 0.240 -- $\approx 8.74\%$ error reduction
+        \item (MATH-lighteval: $\approx 30.67\%$; Easy2Hard-Bench: $\approx 26.83\%$)
+    \end{itemize}
+
+\vspace{10pt}
+
+    \item \textbf{Solution Length Baseline vs. LingFeature + Gradient Boosting}
+    \begin{itemize}
+        \item Combined: 0.250 $\to$ 0.240 -- $\approx 4\%$ error reduction
+        \item (MATH-lighteval: $\approx 24.39\%$; Easy2Hard-Bench: $\approx 21.4\%$)
+    \end{itemize}
+\end{itemize}
+
+
+\section{Conclusion}
+\label{sec:conclusion}
+
+TODO
 
 
 \printbibliography
