@@ -45,7 +45,7 @@
 
 In this project, we implement and evaluate a model for predicting the difficulty of mathematical problems using a range of preprocessing techniques and machine learning methods. Then we compare the performance of these modeling approaches. Everything was implemented in Python using libraries Numpy \cite{numpy}, Scikit-learn \cite{scikit-learn}, Textstat \cite{textstat}, PyTorch \cite{pytorch} and Transformers \cite{transformers}.
 
-We used publicly available datasets of mathematical problems (spanning areas such as algebra, calculus, geometry, combinatorics, etc.), which are usually meant for reasoning language models. These datasets, originally designed for evaluating mathematical reasoning in language models, often include estimated difficulty annotations, which we use as supervision for model training.
+We used publicly available datasets of mathematical problems (spanning areas such as algebra, calculus, geometry, combinatorics, etc.), which are usually meant for reasoning language models. These datasets often include estimated difficulty annotations, which we use as supervision for model training.
 
 Accurate difficulty prediction (not only for mathematical problems, but generally for any task) has several practical applications, including exam difficulty assessment, analytics for instructors and curriculum designers, adaptive learning platforms, student study planning through time-on-task estimation, and benchmarking models that solve mathematical problems.
 
@@ -459,7 +459,7 @@ Both models achieve very similar performance on both datasets. Maybe Random Fore
         \item Easy2Hard-Bench: 0.246 $\to$ 0.18 -- $\approx 26.83\%$ error reduction
     \end{itemize}
 
-\vspace{10pt}
+\vspace{20pt}
 
     \item \textbf{Solution Length Baseline vs. LingFeature + Gradient Boosting}
     \begin{itemize}
@@ -738,7 +738,7 @@ While datasets MATH-lighteval and Easy2Hard-Bench are similar in nature, they di
     \end{itemize}
 \end{itemize}
 
-In this section, we present results of training models from previous sections on the combined dataset. We don't repeat the Transformer models here, since their training times are too long.
+In this section, we present results of training models from previous sections on the combined dataset. We don't repeat the Transformer models here, since their training times are too long and we didn't really optimize their hyperparameters.
 
 \subsection{Baseline Models}
 
@@ -858,7 +858,19 @@ Similarly to TF-IDF models, linguistic features models also perform worse on the
 \section{Conclusion}
 \label{sec:conclusion}
 
-TODO
+In this project, we studied the problem of predicting the difficulty of mathematical problems from their textual descriptions using a range of machine learning approaches. We evaluated simple baselines, classical text-based models, feature-engineered methods, and transformer-based models across two publicly available datasets with different difficulty annotation schemes. By normalizing difficulty labels to a unified continuous scale, we were able to compare models consistently and also explore training on a combined dataset.
+
+Our experiments show that even relatively simple text representations provide strong performance. TF-IDF combined with Ridge regression consistently outperformed baseline models on both datasets, achieving substantial error reductions while remaining computationally efficient and robust. Retaining mathematical notation in the input proved beneficial, indicating that symbols, expressions, and structured mathematical language carry important information for difficulty estimation.
+
+Linguistic feature–based models using tree-based regressors offered interpretability and competitive performance, but they generally lagged behind TF-IDF approaches. However, feature importance analysis gave us some insights into which textual characteristics correlate with problem difficulty the most, such as variable counts and readability metrics.
+
+Transformer-based models achieved the best overall performance, particularly on the Easy2Hard-Bench dataset, demonstrating their ability to capture deeper semantic. However, their gains over TF-IDF models were moderate and came at significantly higher computational cost. Moreover, fine-tuning required careful regularization to mitigate overfitting, and domain-specific pretraining (MathBERT) did not consistently outperform a general-purpose model (BERT-base), likely due to dataset size and domain mismatch.
+
+Training on the combined dataset led to a noticeable drop in performance for all non-transformer models, suggesting that differences in difficulty definitions, distributions, and problem styles introduce additional variance that is not fully captured by simple normalization.
+
+We could observe that each model performed significantly better on the Easy2Hard-Bench despite its smaller size. This was probably caused by already ``noramlized'' and continuous difficulty, which was more suitable for the regression task. On the other hand, MATH-lighteval had more diverse problems together with discrete difficulty levels. This naturally caused higher prediction errors. For future work, it would be interesting to try the MATH-lighteval dataset with classification models instead of regression ones.
+
+Overall, while the error reductions of the models were not remarkable, we still consider this project to be successful. The models are able to capture non-trivial signals related to problem difficulty despite the abstract and highly structured nature of mathematical reasoning.
 
 
 \printbibliography
