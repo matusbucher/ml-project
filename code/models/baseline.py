@@ -17,7 +17,7 @@ class RandomModel(ModelInterface):
 
 class AverageModel(ModelInterface):
     def __init__(self):
-        self._average_label: float = 0.0
+        self._average_label: float = 0.5
 
     def fit(self, data: List[Features], labels: List[float]) -> None:
         self._average_label = sum(labels) / len(labels)

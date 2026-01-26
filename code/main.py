@@ -7,12 +7,16 @@ from sklearn.svm import SVR
 import easy2hard_bench
 import math_lighteval
 from normalized_data import NormalizedData
+from utils import *
+
 from models.model_interface import ModelInterface
 from models.baseline import RandomModel, AverageModel, DescriptionLengthModel, SolutionLengthModel
 from models.tfidf_model import TfIdfModel
 from models.ling_feature_model import LingFeatureModel
-from utils import *
+from models.transformer_model import BertBaseModel, MathBertModel
 
+
+TEST_RATIO = 0.2
 
 TFIDF_SEARCH_PARAMS = {
     "min_df": [1, 3, 5, 10, 15],
@@ -49,20 +53,16 @@ GBR_SEARCH_PARAMS = {
 def preprocess_a(text: str) -> str:
     return normalize_whitespaces(insert_spaces(text.lower()))
 
-
 def preprocess_b(text: str) -> str:
     return normalize_whitespaces(insert_spaces(remove_tex(text.lower())))
 
-
 def prerocess_c(text: str) -> str:
     return normalize_whitespaces(insert_spaces(remove_tex_symbols(text.lower())))
-
 
 def print_scores(model_name: str, model: ModelInterface, data: NormalizedData) -> None:
     print(f"{model_name} model scores:")
     print(f"  train: {model.get_metrics(data.train_data, data.train_labels)}")
     print(f"  test: {model.get_metrics(data.test_data, data.test_labels)}")
-
 
 def test_models_on_dataset(models: List[Tuple[str, ModelInterface]], data: NormalizedData) -> None:
     print("TRAIN SIZE:", len(data.train_data))
@@ -71,7 +71,6 @@ def test_models_on_dataset(models: List[Tuple[str, ModelInterface]], data: Norma
     for model_name, model in models:
         model.fit(data.train_data, data.train_labels)
         print_scores(model_name, model, data)
-
 
 def tfidf_fine_tune(data: NormalizedData, preprocess: Callable[[str], str]) -> None:
     ridge_model = TfIdfModel(bounding_func=clip, regression_model=Ridge(alpha=1.0), preprocess=preprocess)
@@ -84,7 +83,6 @@ def tfidf_fine_tune(data: NormalizedData, preprocess: Callable[[str], str]) -> N
     print("Best SVR parameters:", best_svr)
     print_scores("TF-IDF (Linear SVR) Model", svr_model, data)
 
-
 def ling_feature_fine_tune(data: NormalizedData) -> None:
     rf_model = LingFeatureModel(regressor=RandomForestRegressor(bootstrap=True, random_state=67))
     rf_best_params = rf_model.search_fit(data.train_data, data.train_labels, params=RF_SEARCH_PARAMS)
@@ -96,9 +94,7 @@ def ling_feature_fine_tune(data: NormalizedData) -> None:
     print("Best Gradient Boosting parameters:", gb_best_params)
     print_scores("LingFeature Gradient Boosting Model", gb_model, data)
 
-
-def ling_feature_importances(data: NormalizedData) -> None:
-    models = ling_feature_models()
+def ling_feature_importances(data: NormalizedData, models: List[Tuple[str, LingFeatureModel]]) -> None:
     for model_name, model in models:
         model.fit(data.train_data, data.train_labels)
         importances = model.feature_importances()
@@ -109,39 +105,42 @@ def ling_feature_importances(data: NormalizedData) -> None:
         else:
             print(f"Model {model_name} does not provide feature importances.")
 
-
 def baseline_models() -> List[Tuple[str, ModelInterface]]:
     return [
-        ("Random", RandomModel(bounding_func=clip)),
-        ("Average", AverageModel(bounding_func=clip)),
-        ("Description Length", DescriptionLengthModel(bounding_func=clip)),
-        ("Solution Length", SolutionLengthModel(bounding_func=clip))
+        ("Random", RandomModel()),
+        ("Average", AverageModel()),
+        ("Description Length", DescriptionLengthModel()),
+        ("Solution Length", SolutionLengthModel())
     ]
-
 
 def tfidf_models() -> List[Tuple[str, ModelInterface]]:
     return [
-        ("Ridge (A)", TfIdfModel(bounding_func=clip, regression_model=Ridge(alpha=1.0), preprocess=preprocess_a)),
-        ("Ridge (B)", TfIdfModel(bounding_func=clip, regression_model=Ridge(alpha=1.0), preprocess=preprocess_b)),
-        ("Ridge (C)", TfIdfModel(bounding_func=clip, regression_model=Ridge(alpha=1.0), preprocess=prerocess_c)),
-        ("SVR (A)", TfIdfModel(bounding_func=clip, regression_model=SVR(kernel="linear", C=0.1, epsilon=0.1), preprocess=preprocess_a)),
-        ("SVR (B)", TfIdfModel(bounding_func=clip, regression_model=SVR(kernel="linear", C=0.1, epsilon=0.1), preprocess=preprocess_b)),
-        ("SVR (C)", TfIdfModel(bounding_func=clip, regression_model=SVR(kernel="linear", C=0.1, epsilon=0.1), preprocess=prerocess_c)),
+        ("Ridge (A)", TfIdfModel(regression_model=Ridge(alpha=1.0), preprocess=preprocess_a, bounding_func=clip)),
+        ("Ridge (B)", TfIdfModel(regression_model=Ridge(alpha=1.0), preprocess=preprocess_b, bounding_func=clip)),
+        ("Ridge (C)", TfIdfModel(regression_model=Ridge(alpha=1.0), preprocess=prerocess_c, bounding_func=clip)),
+        ("SVR (A)", TfIdfModel(regression_model=SVR(kernel="linear", C=0.1, epsilon=0.1), preprocess=preprocess_a, bounding_func=clip)),
+        ("SVR (B)", TfIdfModel(regression_model=SVR(kernel="linear", C=0.1, epsilon=0.1), preprocess=preprocess_b, bounding_func=clip)),
+        ("SVR (C)", TfIdfModel(regression_model=SVR(kernel="linear", C=0.1, epsilon=0.1), preprocess=prerocess_c, bounding_func=clip)),
     ]
-
 
 def ling_feature_models() -> List[Tuple[str, ModelInterface]]:
     return [
-        ("LingFeature Random Forest (MATH-best)", LingFeatureModel(regressor=RandomForestRegressor(bootstrap=True, random_state=67, n_estimators=300, max_depth=20, min_samples_split=10, min_samples_leaf=3, max_features=0.6))),
-        ("LingFeature Random Forest (E2H-best)", LingFeatureModel(regressor=RandomForestRegressor(bootstrap=True, random_state=67, n_estimators=500, max_depth=10, min_samples_split=10, min_samples_leaf=3, max_features=0.8))),
-        ("LingFeature Gradient Boosting (MATH-best)", LingFeatureModel(regressor=GradientBoostingRegressor(loss="squared_error", max_features=None, random_state=67, n_estimators=300, learning_rate=0.01, max_depth=10, min_samples_split=20, min_samples_leaf=3, subsample=0.6))),
-        ("LingFeature Gradient Boosting (E2H-best)", LingFeatureModel(regressor=GradientBoostingRegressor(loss="squared_error", max_features=None, random_state=67, n_estimators=700, learning_rate=0.01, max_depth=5, min_samples_split=50, min_samples_leaf=10, subsample=0.8)))
+        ("LingFeature Random Forest (MATH-best)", LingFeatureModel(regressor=RandomForestRegressor(bootstrap=True, random_state=67, n_estimators=300, max_depth=20, min_samples_split=10, min_samples_leaf=3, max_features=0.6), bounding_func=clip)),
+        ("LingFeature Random Forest (E2H-best)", LingFeatureModel(regressor=RandomForestRegressor(bootstrap=True, random_state=67, n_estimators=500, max_depth=10, min_samples_split=10, min_samples_leaf=3, max_features=0.8), bounding_func=clip)),
+        ("LingFeature Gradient Boosting (MATH-best)", LingFeatureModel(regressor=GradientBoostingRegressor(loss="squared_error", max_features=None, random_state=67, n_estimators=300, learning_rate=0.01, max_depth=10, min_samples_split=20, min_samples_leaf=3, subsample=0.6), bounding_func=clip)),
+        ("LingFeature Gradient Boosting (E2H-best)", LingFeatureModel(regressor=GradientBoostingRegressor(loss="squared_error", max_features=None, random_state=67, n_estimators=700, learning_rate=0.01, max_depth=5, min_samples_split=50, min_samples_leaf=10, subsample=0.8), bounding_func=clip))
+    ]
+
+def transformer_models() -> List[Tuple[str, ModelInterface]]:
+    return [
+        ("BERT Base Model", BertBaseModel(output_dir="tmp/bert-base")),
+        ("Math BERT Model", MathBertModel(output_dir="tmp/mathbert"))
     ]
 
 
 if __name__ == "__main__":
-    data1 = math_lighteval.data_load()
-    data2 = easy2hard_bench.data_load()
+    data1 = math_lighteval.data_load(test_ratio=TEST_RATIO)
+    data2 = easy2hard_bench.data_load(test_ratio=TEST_RATIO)
 
     models = []
 

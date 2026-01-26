@@ -15,21 +15,22 @@ class TfIdfModel(ModelInterface):
         return normalize_whitespaces(insert_spaces(text.lower()))
 
     def __init__(self,
-                 bounding_func: Callable[[float], float] = identity,
-                 vectorizer: TfidfVectorizer = TfidfVectorizer(
-                     ngram_range=(1, 2),
-                     sublinear_tf=True,
-                     stop_words="english",
-                     norm="l2",
-                     min_df=3,
-                     max_df=0.3
-                 ),
-                 regression_model = SVR(
-                     kernel="linear",
-                     C=0.1,
-                     epsilon=0.1
-                 ),
-                 preprocess: Optional[Callable[[str], str]] = None) -> None:
+        vectorizer: TfidfVectorizer = TfidfVectorizer(
+            ngram_range=(1, 2),
+            sublinear_tf=True,
+            stop_words="english",
+            norm="l2",
+            min_df=3,
+            max_df=0.3
+        ),
+        regression_model = SVR(
+            kernel="linear",
+            C=0.1,
+            epsilon=0.1
+        ),
+        preprocess: Optional[Callable[[str], str]] = None,
+        bounding_func: Callable[[float], float] = clip
+    ):
         
         self._model = Pipeline([
             ("tfidf", vectorizer),
@@ -37,7 +38,7 @@ class TfIdfModel(ModelInterface):
         ])
         
         self._bounding_func = bounding_func
-        self._preprocess = preprocess if preprocess is not None else self.__default_preprocess
+        self._preprocess = preprocess or self.__default_preprocess
 
     def fit(self, data: List[Features], labels: List[float]) -> None:
         X = [self._preprocess(d.description) for d in data]

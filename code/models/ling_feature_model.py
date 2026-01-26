@@ -108,18 +108,19 @@ class LingFeatures:
 
 class LingFeatureModel(ModelInterface):
     def __init__(self,
-                 bounding_func: Callable[[float], float] = identity,
-                 regressor = GradientBoostingRegressor(
-                     loss="squared_error",
-                     max_features=None,
-                     random_state=67,
-                     learning_rate=0.01,
-                     n_estimators=500,
-                     max_depth=10,
-                     min_samples_split=20,
-                     min_samples_leaf=3,
-                     subsample=0.6
-                 )):
+        regressor = GradientBoostingRegressor(
+            loss="squared_error",
+            max_features=None,
+            random_state=67,
+            learning_rate=0.01,
+            n_estimators=500,
+            max_depth=10,
+            min_samples_split=20,
+            min_samples_leaf=3,
+            subsample=0.6
+        ),
+        bounding_func: Callable[[float], float] = clip
+    ):
         
         self._model = regressor
         self._bounding_func = bounding_func
