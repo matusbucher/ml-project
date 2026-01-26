@@ -1,24 +1,15 @@
+from __future__ import annotations
 from typing import List
 from enum import Enum
 from dataclasses import dataclass
+import random
 from sklearn.model_selection import train_test_split
-
-
-class ProblemType(Enum):
-    ALGEBRA = "algebra"
-    INTERMEDIATE_ALGEBRA = "intermediate algebra"
-    PREALGEBRA = "prealgebra"
-    GEOMETRY = "geometry"
-    NUMBER_THEORY = "number theory"
-    COUNTING_AND_PROBABILITY = "counting and probability"
-    PRECALCULUS = "precalculus"
 
 
 @dataclass
 class Features():
     description: str
     solution: str
-    problem_type: ProblemType
 
 
 class NormalizedData:
@@ -35,3 +26,21 @@ class NormalizedData:
     
     def test_size(self) -> int:
         return len(self.test_data)
+    
+    @staticmethod
+    def merge_data(data_list: List[NormalizedData], test_ratio: float, shuffle: bool = True, random_state: int = 67) -> NormalizedData:
+        merged_data = []
+        merged_labels = []
+
+        for nd in data_list:
+            merged_data.extend(nd.train_data)
+            merged_data.extend(nd.test_data)
+            merged_labels.extend(nd.train_labels)
+            merged_labels.extend(nd.test_labels)
+        
+        if shuffle:
+            combined = list(zip(merged_data, merged_labels))
+            random.Random(random_state).shuffle(combined)
+            merged_data[:], merged_labels[:] = zip(*combined)
+
+        return NormalizedData(merged_data, merged_labels, test_ratio)
