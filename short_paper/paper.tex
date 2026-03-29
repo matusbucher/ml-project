@@ -1,0 +1,187 @@
+\documentclass[twocolumn, 10pt]{article}
+
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[margin=1.5cm, columnsep=0.6cm, top=1.8cm, bottom=1.8cm]{geometry}
+\usepackage{microtype}
+\usepackage{amsmath,amssymb}
+\usepackage{hyperref}
+\usepackage{booktabs}
+\usepackage[hypcap=false, font=small, skip=4pt]{caption}
+\usepackage{xcolor}
+\usepackage{cleveref}
+\usepackage{multirow}
+\usepackage{enumitem}
+\usepackage[numbers]{natbib}
+\usepackage{url}
+
+\setlength{\parskip}{3pt}
+\setlength{\parindent}{0pt}
+\setlength{\abovecaptionskip}{4pt}
+\setlength{\belowcaptionskip}{2pt}
+
+\title{\textbf{Model for Math Problems Difficulty Prediction}\\[4pt]
+\large Machine Learning Project Report}
+\author{Matus Bucher\\
+\small \href{mailto:bucher5@uniba.sk}{\textcolor{blue}{bucher5@uniba.sk}}\\
+\small Comenius University in Bratislava}
+\date{}
+
+\begin{document}
+
+\maketitle
+\vspace{-10pt}
+
+\noindent\textbf{GitHub:}~\href{https://github.com/matusbucher/ml-project}{\textcolor{blue}{github.com/matusbucher/ml-project}}
+
+\section{Introduction}
+
+We implement and evaluate models for predicting the difficulty of mathematical problems from their textual descriptions. We compare approaches spanning classical text-based models (TF-IDF), interpretable feature engineering, and fine-tuned transformers. Practical applications include exam assessment, adaptive learning, and benchmarking reasoning models. We use Numpy~\cite{numpy}, Scikit-learn~\cite{scikit-learn}, Textstat~\cite{textstat}, PyTorch~\cite{pytorch}, and Transformers~\cite{transformers}. A full version of this report with detailed methodology, hyperparameter search, and combined-dataset experiments is available in the project repository: \href{https://github.com/matusbucher/ml-project}{\textcolor{blue}{github.com/matusbucher/ml-project}}.
+
+\section{Datasets and Problem Setup}
+
+We use two datasets with explicit difficulty annotations:
+\begin{itemize}[noitemsep, topsep=2pt]
+  \item \textbf{MATH-lighteval}~\cite{math}: 12{,}500 problems; difficulty as integer level $1$--$5$.
+  \item \textbf{Easy2Hard-Bench (E2H)}~\cite{easy2hard}: 3{,}980 problems; difficulty as float rating in $(0,1)$.
+\end{itemize}
+
+Problem statements are given as text with \TeX{} notation. We use an 80:20 train-test split (MATH: 9{,}998/2{,}500; E2H: 3{,}180/795). The model outputs a single value in $[0,1]$. MATH-lighteval levels are normalized via $0.1 + 0.2(l-1)$; E2H ratings are used as-is. Predictions are clipped to $[0,1]$ at evaluation time. We report $R^2$ and RMSE.
+
+\section{Baseline Models}
+
+Four baselines establish reference performance: \textbf{Random} (uniform sample in $(0,1)$), \textbf{Average} (training mean), \textbf{Desc.\ Length} (linear regression on description length), and \textbf{Sol.\ Length} (linear regression on solution length). Test results are in \cref{tab:baselines}.
+
+\begin{table}[ht]
+\centering
+\caption{Baseline test-set scores}
+\label{tab:baselines}
+\small
+\begin{tabular}{lcccc}
+\toprule
+\multirow{2}{*}{\textbf{Model}} & \multicolumn{2}{c}{\textbf{MATH}} & \multicolumn{2}{c}{\textbf{E2H}} \\
+\cmidrule(lr){2-3}\cmidrule(lr){4-5}
+& $R^2$ & RMSE & $R^2$ & RMSE \\
+\midrule
+Random       & $-0.98$ & $0.454$ & $-1.43$ & $0.382$ \\
+Average      & $0.000$ & $0.323$ & $-0.002$ & $0.245$ \\
+Desc.\ Length & $0.061$ & $0.313$ & $-0.005$ & $0.246$ \\
+Sol.\ Length  & $0.210$ & $0.287$ & $0.124$  & $0.229$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\section{TF-IDF with Linear Regression}
+\label{sec:tfidf}
+
+We vectorize problem texts using \texttt{TfidfVectorizer} with fixed settings (\texttt{ngram\_range=(1,2)}, \texttt{sublinear\_tf=True}, \texttt{stop\_words="english"}) and tuned settings (\texttt{min\_df=3}, \texttt{max\_df=0.3}). We train either \textit{Ridge} ($\alpha=1.0$) or \textit{SVR} ($C=0.1$, $\varepsilon=0.1$), both tuned via 5-fold cross-validated grid search (negative MSE). We test three preprocessing strategies: (a)~raw text, (b)~\TeX{} fully stripped, (c)~only \TeX{} punctuation removed. Results are in \cref{tab:tfidf}.
+
+\begin{table}[ht]
+\centering
+\caption{TF-IDF test-set scores}
+\label{tab:tfidf}
+\small
+\begin{tabular}{lcccc}
+\toprule
+\multirow{2}{*}{\textbf{Model}} & \multicolumn{2}{c}{\textbf{MATH}} & \multicolumn{2}{c}{\textbf{E2H}} \\
+\cmidrule(lr){2-3}\cmidrule(lr){4-5}
+& $R^2$ & RMSE & $R^2$ & RMSE \\
+\midrule
+Ridge (a) & $0.328$ & $0.212$ & $0.609$ & $0.153$ \\
+Ridge (b) & $0.298$ & $0.216$ & $0.545$ & $0.165$ \\
+Ridge (c) & $0.328$ & $0.212$ & $0.603$ & $0.154$ \\
+SVR (a)   & $0.326$ & $0.212$ & $0.595$ & $0.156$ \\
+SVR (b)   & $0.294$ & $0.217$ & $0.526$ & $0.169$ \\
+SVR (c)   & $0.325$ & $0.212$ & $0.592$ & $0.156$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Approaches (a) and (c) perform similarly and both outperform (b), indicating mathematical notation carries useful signal. The best overall model is \textbf{TF-IDF + Ridge (a)}.
+
+\section{Linguistic Features with Tree-Based Models}
+\label{sec:linguistic}
+
+We extract 11 features using Textstat~\cite{textstat} and custom code: sentence count, lexicon count, syllable count, Flesch reading ease, Flesch-Kincaid grade level, Dale-Chall score, difficult words count, math expression count, numbers count, operators count, and variables count. We fit a \textit{Random Forest} or \textit{Gradient Boosting} regressor, tuned via 5-fold grid search. Best Gradient Boosting hyperparameters on MATH: \texttt{n\_estimators=300}, \texttt{lr=0.01}, \texttt{max\_depth=10}, \texttt{subsample=0.6}; on E2H: \texttt{n\_estimators=700}, \texttt{lr=0.01}, \texttt{max\_depth=5}, \texttt{subsample=0.8}. Results are in \cref{tab:ling}.
+
+\begin{table}[ht]
+\centering
+\caption{Linguistic feature model test-set scores}
+\label{tab:ling}
+\small
+\begin{tabular}{lcccc}
+\toprule
+\multirow{2}{*}{\textbf{Model}} & \multicolumn{2}{c}{\textbf{MATH}} & \multicolumn{2}{c}{\textbf{E2H}} \\
+\cmidrule(lr){2-3}\cmidrule(lr){4-5}
+& $R^2$ & RMSE & $R^2$ & RMSE \\
+\midrule
+Random Forest  & $0.295$ & $0.217$ & $0.444$ & $0.183$ \\
+Grad.\ Boosting & $0.297$ & $0.217$ & $0.457$ & $0.180$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Both models perform comparably; Gradient Boosting generalizes slightly better. The most predictive features across both datasets (by average importance) are variables count, Dale-Chall score, and syllable count.
+
+\section{Transformer Models}
+\label{sec:bert}
+
+We fine-tune \textbf{BERT-base}~\cite{bertbase} and \textbf{MathBERT}~\cite{mathbert} with a single-output regression head via the Transformers library~\cite{transformers}. Inputs are tokenized with \texttt{max\_length=256}, padding, and truncation.
+
+\textbf{1st attempt} (90:10 train-val split): \texttt{lr=2e-5}, \texttt{weight\_decay=0.01}, \texttt{epochs=4}. Both models showed overfitting (train scores significantly better than test).
+
+\textbf{2nd attempt} (80:20 train-val split) targeting reduced overfitting: \texttt{lr=1e-5}, \texttt{weight\_decay=0.1}, hidden/attention dropout $0.2$. Results are in \cref{tab:bert}.
+
+\begin{table}[ht]
+\centering
+\caption{Transformer model test-set scores}
+\label{tab:bert}
+\small
+\begin{tabular}{lcccc}
+\toprule
+\multirow{2}{*}{\textbf{Model}} & \multicolumn{2}{c}{\textbf{MATH}} & \multicolumn{2}{c}{\textbf{E2H}} \\
+\cmidrule(lr){2-3}\cmidrule(lr){4-5}
+& $R^2$ & RMSE & $R^2$ & RMSE \\
+\midrule
+BERT-base (1st) & $0.404$ & $0.199$ & $0.738$ & $0.125$ \\
+MathBERT (1st)  & $0.383$ & $0.203$ & $0.701$ & $0.134$ \\
+BERT-base (2nd) & $0.352$ & $0.208$ & $0.698$ & $0.135$ \\
+MathBERT (2nd)  & $0.351$ & $0.208$ & $0.613$ & $0.152$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The 2nd attempt reduces overfitting but at the cost of test performance. BERT-base consistently outperforms MathBERT, likely due to domain mismatch of MathBERT pretraining data.
+
+\section{Overall Comparison}
+\label{sec:comparison}
+
+\Cref{tab:comparison} compares the best representative from each category (Description Length baseline included as the fairest baseline, since all main models use only the problem statement).
+
+\begin{table}[ht]
+\centering
+\caption{Best model per category, test-set scores}
+\label{tab:comparison}
+\small
+\begin{tabular}{lcccc}
+\toprule
+\multirow{2}{*}{\textbf{Model}} & \multicolumn{2}{c}{\textbf{MATH}} & \multicolumn{2}{c}{\textbf{E2H}} \\
+\cmidrule(lr){2-3}\cmidrule(lr){4-5}
+& $R^2$ & RMSE & $R^2$ & RMSE \\
+\midrule
+Desc.\ Length    & $0.061$ & $0.313$ & $-0.005$ & $0.246$ \\
+TF-IDF + Ridge (a) & $0.328$ & $0.212$ & $0.609$  & $0.153$ \\
+LingFeat + GBR   & $0.297$ & $0.217$ & $0.457$  & $0.180$ \\
+BERT-base (1st)  & $0.404$ & $0.199$ & $0.738$  & $0.125$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\section{Conclusion}
+
+BERT-base achieves the best test performance, followed by TF-IDF + Ridge. Linguistic feature models trail slightly. Retaining mathematical notation consistently improves TF-IDF results. Domain-specific pretraining (MathBERT) did not improve over general BERT. All models provide meaningful signal over naive baselines, showing that textual features alone can predict problem difficulty to a reasonable degree.
+
+\bibliographystyle{unsrtnat}
+\bibliography{references}
+
+\end{document}
