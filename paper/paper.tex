@@ -701,7 +701,7 @@ While on MATH-lighteval dataset both models perform similarly, on Easy2Hard-Benc
 Compared to previous models, both transformer models performed better, although not by a large margin. In the following, we report the error reduction on the test set against baseline models and the best TF-IDF + Ridge model from \cref{sec:tfidf}. We will consider BERT-base from the first attempt as the representative one even though it might be overfitted, since it has the best test scores.
 
 \begin{itemize}
-    \item \textbf{Description Length Baseline vs. BERT-base (1nd attempt)}
+    \item \textbf{Description Length Baseline vs. BERT-base (1st attempt)}
     \begin{itemize}
         \item MATH-lighteval: 0.313 $\to$ 0.199 -- $\approx 36.42\%$ error reduction
         \item Easy2Hard-Bench: 0.246 $\to$ 0.125 -- $\approx 49.19\%$ error reduction
@@ -709,7 +709,7 @@ Compared to previous models, both transformer models performed better, although 
 
 \vspace{10pt}
 
-    \item \textbf{Solution Length Baseline vs. BERT-base (1nd attempt)}
+    \item \textbf{Solution Length Baseline vs. BERT-base (1st attempt)}
     \begin{itemize}
         \item MATH-lighteval: 0.287 $\to$ 0.199 -- $\approx 30.66\%$ error reduction
         \item Easy2Hard-Bench: 0.229 $\to$ 0.125 -- $\approx 45.41\%$ error reduction
@@ -717,7 +717,7 @@ Compared to previous models, both transformer models performed better, although 
 
 \vspace{10pt}
 
-    \item \textbf{TF-IDF + Ridge vs. BERT-base (1nd attempt)}
+    \item \textbf{TF-IDF + Ridge vs. BERT-base (1st attempt)}
     \begin{itemize}
         \item MATH-lighteval: 0.212 $\to$ 0.199 -- $\approx 6.13\%$ error reduction
         \item Easy2Hard-Bench: 0.153 $\to$ 0.125 -- $\approx 18.3\%$ error reduction
@@ -855,6 +855,72 @@ Similarly to TF-IDF models, linguistic features models also perform worse on the
 \end{itemize}
 
 
+
+\section{Overall Model Comparison}
+\label{sec:comparison}
+
+To summarize the results across all approaches, we present a side-by-side comparison of the best representative model from each category on each dataset. For the baseline, we include the Description Length model, which uses the same input feature as our main models. For TF-IDF and linguistic feature models, we pick the best-performing variant found in previous sections. Transformer models are included only for individual datasets, since we did not train them on the combined dataset.
+
+\vspace{5pt}
+
+\begin{minipage}{\linewidth}
+    \centering
+    \captionof{table}{Best model per category on MATH-lighteval}
+    \label{tab:compare-math}
+    \begin{tabular}{@{}|Sc|ScSc|ScSc|@{}}
+        \hline
+        \textbf{Model} & \multicolumn{2}{Sc|}{\textbf{Train}} & \multicolumn{2}{Sc|}{\textbf{Test}} \\
+        \cline{2-5}
+        & $R^2$ & RMSE & $R^2$ & RMSE \\
+        \hline
+        \raggedright Description Length & 0.059 & 0.313 & 0.061 & 0.313 \\
+        \raggedright TF-IDF + Ridge (a) & 0.627 & 0.158 & 0.328 & 0.212 \\
+        \raggedright LingFeature + Grad. Boosting & 0.547 & 0.174 & 0.297 & 0.217 \\
+        \raggedright BERT-base (1st attempt) & 0.670 & 0.148 & 0.404 & 0.199 \\
+        \hline
+    \end{tabular}
+\end{minipage}
+
+\vspace{10pt}
+
+\begin{minipage}{\linewidth}
+    \centering
+    \captionof{table}{Best model per category on Easy2Hard-Bench}
+    \label{tab:compare-e2h}
+    \begin{tabular}{@{}|Sc|ScSc|ScSc|@{}}
+        \hline
+        \textbf{Model} & \multicolumn{2}{Sc|}{\textbf{Train}} & \multicolumn{2}{Sc|}{\textbf{Test}} \\
+        \cline{2-5}
+        & $R^2$ & RMSE & $R^2$ & RMSE \\
+        \hline
+        \raggedright Description Length & 0.001 & 0.244 & -0.005 & 0.246 \\
+        \raggedright TF-IDF + Ridge (a) & 0.815 & 0.105 & 0.609 & 0.153 \\
+        \raggedright LingFeature + Grad. Boosting & 0.606 & 0.153 & 0.457 & 0.180 \\
+        \raggedright BERT-base (1st attempt) & 0.877 & 0.086 & 0.738 & 0.125 \\
+        \hline
+    \end{tabular}
+\end{minipage}
+
+\vspace{10pt}
+
+\begin{minipage}{\linewidth}
+    \centering
+    \captionof{table}{Best model per category on Combined dataset}
+    \label{tab:compare-combined}
+    \begin{tabular}{@{}|Sc|ScSc|ScSc|@{}}
+        \hline
+        \textbf{Model} & \multicolumn{2}{Sc|}{\textbf{Train}} & \multicolumn{2}{Sc|}{\textbf{Test}} \\
+        \cline{2-5}
+        & $R^2$ & RMSE & $R^2$ & RMSE \\
+        \hline
+        \raggedright Description Length & 0.011 & 0.262 & 0.018 & 0.263 \\
+        \raggedright TF-IDF + Ridge (c) & 0.592 & 0.168 & 0.228 & 0.233 \\
+        \raggedright LingFeature + Grad. Boosting & 0.446 & 0.196 & 0.183 & 0.240 \\
+        \hline
+    \end{tabular}
+\end{minipage}
+
+
 \section{Conclusion}
 \label{sec:conclusion}
 
@@ -862,7 +928,7 @@ In this project, we studied the problem of predicting the difficulty of mathemat
 
 Our experiments show that even relatively simple text representations provide strong performance. TF-IDF combined with Ridge regression consistently outperformed baseline models on both datasets, achieving substantial error reductions while remaining computationally efficient and robust. Retaining mathematical notation in the input proved beneficial, indicating that symbols, expressions, and structured mathematical language carry important information for difficulty estimation.
 
-Linguistic feature–based models using tree-based regressors offered interpretability and competitive performance, but they generally lagged behind TF-IDF approaches. However, feature importance analysis gave us some insights into which textual characteristics correlate with problem difficulty the most, such as variable counts and readability metrics.
+Linguistic feature-based models using tree-based regressors offered interpretability and competitive performance, but they generally lagged behind TF-IDF approaches. However, feature importance analysis gave us some insights into which textual characteristics correlate with problem difficulty the most, such as variable counts and readability metrics.
 
 Transformer-based models achieved the best overall performance, particularly on the Easy2Hard-Bench dataset, demonstrating their ability to capture deeper semantic. However, their gains over TF-IDF models were moderate and came at significantly higher computational cost. Moreover, fine-tuning required careful regularization to mitigate overfitting, and domain-specific pretraining (MathBERT) did not consistently outperform a general-purpose model (BERT-base), likely due to dataset size and domain mismatch.
 
